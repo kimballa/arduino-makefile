@@ -65,7 +65,7 @@
 #   mcu_specific_h  - If defined, sets include_install_dir to an MCU-specific subdir of include/.
 #
 # You can use the example Makefile (`Makefile.template`) as a basis to work from to get started
-# quickly: 
+# quickly:
 #     $ cp Makefile.template /path/to/your/project/Makefile
 #
 #
@@ -89,7 +89,7 @@
 # Use `make config` to see the active configuration.
 # Use `make help` to see a list of available targets.
 
-ARDUINO_MK_VER := 1.2.2
+ARDUINO_MK_VER := 1.3.0
 
 # If the user has a config file to set $BOARD, etc., include it here.
 MAKE_CONF_FILE := $(HOME)/.arduino_mk.conf
@@ -116,6 +116,7 @@ endif
 ifneq ($(origin lib_name), undefined)
 	@echo "install       : Install the library to $(install_dir)"
 	@echo "library       : (default) Compile code for this library"
+	@echo "lint          : Run arduino-lint on this library's source code"
 else ifneq ($(origin prog_name), undefined)
 	@echo "image         : (default) Compile code and prepare upload-ready files"
 endif
@@ -716,6 +717,10 @@ install: $(TARGET)
 	mkdir -p $(install_dir)/lib/arch/$(ARCH)/$(build_mcu)/
 	cp $(TARGET) $(install_dir)/lib/arch/$(ARCH)/$(build_mcu)/
 	cp $(install_headers) $(include_install_dir)
+
+lint:
+	arduino-lint
+
 endif
 
 tags:
