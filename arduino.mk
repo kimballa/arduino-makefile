@@ -1,8 +1,34 @@
 # (c) Copyright 2021 Aaron Kimball
 #
-# Makefile for Arduino-based build and upload capabilities.
+# Redistribution and use in source and binary forms, with or without modification, are
+# permitted provided that the following conditions are met:
 #
-# You must set the following variables in Makefile before including this .mk file:
+#   1. Redistributions of source code must retain the above copyright notice, this list of
+#      conditions and the following disclaimer.
+#   2. Redistributions in binary form must reproduce the above copyright notice, this list
+#      of conditions and the following disclaimer in the documentation and/or other materials
+#      provided with the distribution.
+#   3. Neither the name of the copyright holder nor the names of its contributors may be
+#      used to endorse or promote products derived from this software without specific prior
+#      written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
+# TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+#
+#
+#           A Makefile for Arduino-based build and upload capabilities
+#
+#
+#
+# You must set the following variables in your Makefile before including this .mk file:
 #
 #   BOARD 		- The fqbn of the board to use (e.g. 'arduino:avr:uno')
 #   prog_name - The name of the program you're compiling (will generate '$(prog_name).elf', .hex...
@@ -38,6 +64,11 @@
 #   arch_specific_h - If defined, sets include_install_dir to an arch-specific subdir of include/.
 #   mcu_specific_h  - If defined, sets include_install_dir to an MCU-specific subdir of include/.
 #
+# You can use the example Makefile (`Makefile.template`) as a basis to work from to get started
+# quickly: 
+#     $ cp Makefile.template /path/to/your/project/Makefile
+#
+#
 # If you have a file named .arduino_mk.conf in your home dir, it will be included
 # to enable you to set defaults.
 #
@@ -52,13 +83,13 @@
 # install_dir       - Where library binaries & headers are installed. Used to install new
 #                     libraries as well as link against existing ones.
 #
-# There is a template `arduino_mk_conf.template` in this directory for you to get started:
+# There is a template `arduino_mk_conf.template` config file for you to get started:
 #     $ cp arduino_mk_conf.template $HOME/.arduino_mk.conf
 #
 # Use `make config` to see the active configuration.
 # Use `make help` to see a list of available targets.
 
-ARDUINO_MK_VER := 1.2.1
+ARDUINO_MK_VER := 1.2.2
 
 # If the user has a config file to set $BOARD, etc., include it here.
 MAKE_CONF_FILE := $(HOME)/.arduino_mk.conf

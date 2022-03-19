@@ -1,0 +1,4 @@
+
+* `arduino-cli board list` will list all attached boards.
+  If BOARD is not set, parse this and get the attached board for the specified serial port.
+
