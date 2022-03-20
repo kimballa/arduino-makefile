@@ -12,13 +12,15 @@ Setup and dependencies
   well as associated AVR or ARM compilation toolchains.
 * Install the `arduino-cli` tool (https://github.com/arduino/arduino-cli) on your `PATH`.
 * Copy `arduino_mk_conf.template` to a file named `~/.arduino_mk.conf` to hold your hardware
-  configuration. This is included in the Makefile and follows Makefile syntax. 
+  configuration. This is included in the Makefile and follows Makefile syntax.
+* Build the `Wire` library for your Arduino by running `./install-wire.sh`.
 
 Config file
 -----------
 You should set the following variables:
 
-* `BOARD` - the fqbn of the board you are using (e.g. `arduino:avr:leonardo`)
+* `BOARD` - the fqbn of the board you are using (e.g. `arduino:avr:leonardo`). If `BOARD` is set
+  to `auto` then it will attempt to auto-detect the current connected board.
 * `UPLOAD_PORT` - the USB port where you upload to the board. (e.g. `/dev/ttyACM0`)
 * `UPLOAD_PROTOCOL` - The protocol to use (e.g. `serial` or `usb`). (Default: `serial`)
 * `AVR_PROGRAMMER` - Flash programmer protocol for `avrdude` (Default: `avr109`)
@@ -40,7 +42,7 @@ Usage
 * Run `make` to build your app or library.
 * Libraries can be installed to a local lib dir for linking to apps later with `make install`.
 * Apps can be flashed to the Arduino with `make upload` or `make verify`.
-* Use `make config` to see and debug your environment config. Use `make help` to see a list of 
+* Use `make config` to see and debug your environment config. Use `make help` to see a list of
   available targets.
 
 License
