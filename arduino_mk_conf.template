@@ -4,8 +4,10 @@
 # Using `?=` notation allows you to override these on the command-line
 # to `make` with environment variables: $ BOARD=my:new:board make clean verify
 
-# The fqbn of your board (e.g.: arduino:avr:uno)
-BOARD ?= arduino:avr:leonardo
+# Autodetect the current connected board.
+BOARD ?= auto
+# You can also specify the fqbn of your board explicitly (e.g.: arduino:avr:uno)
+# BOARD ?= arduino:avr:leonardo
 
 # Directory where `make install` should put static libraries & headers,
 # for use by other libraries and apps compiled with arduino.mk.

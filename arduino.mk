@@ -30,7 +30,8 @@
 #
 # You must set the following variables in your Makefile before including this .mk file:
 #
-#   BOARD 		- The fqbn of the board to use (e.g. 'arduino:avr:uno')
+#   BOARD 		- The fqbn of the board to use (e.g. 'arduino:avr:uno') or "auto" to autodetect
+#               the connected board.
 #   prog_name - The name of the program you're compiling (will generate '$(prog_name).elf', .hex...
 #   lib_name  - The name of the library you're compiling (will generate 'lib$(lib_name).a')
 #
@@ -73,7 +74,8 @@
 # to enable you to set defaults.
 #
 # Global config you may want to set there:
-# BOARD 					  - The fqbn of the board to use (e.g. 'arduino:avr:uno')
+# BOARD 					  - The fqbn of the board to use (e.g. 'arduino:avr:uno') or 'auto' to autodetect
+#                     the current connected board.
 # ARDUINO_CLI       - Path to the `arduino-cli` tool (default is to discover via which(1))
 # UPLOAD_PORT       - The serial port to deploy to
 # UPLOAD_PROTOCOL   - 'serial' or 'usb'
@@ -89,7 +91,7 @@
 # Use `make config` to see the active configuration.
 # Use `make help` to see a list of available targets.
 
-ARDUINO_MK_VER := 1.3.0
+ARDUINO_MK_VER := 1.4.0
 
 # If the user has a config file to set $BOARD, etc., include it here.
 MAKE_CONF_FILE := $(HOME)/.arduino_mk.conf
@@ -202,8 +204,21 @@ ifndef ARDUINO_DATA_DIR
 endif
 
 ifndef BOARD
-$(error "The `BOARD` variable must specify the active board fqbn. e.g.: 'arduino:avr:uno'")
+BOARD := auto
 endif
+
+ifeq ($(BOARD), auto)
+	# The user has asked us to auto-detect the board fqbn.
+	# Use the first board in the list from `arduino-cli board list`
+	TRUE_BOARD = $(strip $(shell $(ARDUINO_CLI) board list --no-color | awk '{ if (NR == 2) print $$(NF-1) }'))
+else
+  TRUE_BOARD = $(BOARD)
+endif
+
+ifeq ($(TRUE_BOARD),)
+$(error "Empty board name specified or could not auto-detect board. You must specify BOARD=some:fqbn:here")
+endif
+
 
 ifndef prog_name
 ifndef lib_name
@@ -226,11 +241,11 @@ endif
 endif
 
 # Specific Arduino variant within fqbn.
-VARIANT := $(strip $(shell echo $(BOARD) | head -1 | cut -d ':' -f 3))
+VARIANT := $(strip $(shell echo $(TRUE_BOARD) | head -1 | cut -d ':' -f 3))
 
-# Based on the current $BOARD, look up complete toolchain information from
+# Based on the current $TRUE_BOARD, look up complete toolchain information from
 # output of `arduino-cli board details`; set the command to call here:
-__DETAILS := $(ARDUINO_CLI) board details -b $(BOARD)
+__DETAILS := $(ARDUINO_CLI) board details -b $(TRUE_BOARD)
 
 # What we are searching for is values to assign to the following variables, which may be overridden
 # in advance:
@@ -460,7 +475,7 @@ CFLAGS += $(XFLAGS)
 CXXFLAGS += $(XFLAGS)
 LDFLAGS += $(XFLAGS)
 
-$(info Building for target: $(BOARD) [$(build_variant); $(build_mcu)])
+$(info Building for target: $(TRUE_BOARD) [$(build_variant); $(build_mcu)])
 $(info Toolchain (version $(COMPILER_VERSION)) location: $(COMPILER_BINDIR))
 $(info )
 ######### end configuration section #########
@@ -469,7 +484,7 @@ config:
 	@echo "Ardiuno build configuration:"
 	@echo "===================================="
 	@echo "arduino.mk    : $(ARDUINO_MK_VER)"
-	@echo "BOARD (fqdn)  : $(BOARD)"
+	@echo "BOARD (fqdn)  : $(TRUE_BOARD)"
 	@echo ""
 	@echo "Package       : $(ARDUINO_PACKAGE)"
 	@echo "Architecture  : $(ARCH)"
