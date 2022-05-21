@@ -91,7 +91,7 @@
 # Use `make config` to see the active configuration.
 # Use `make help` to see a list of available targets.
 
-ARDUINO_MK_VER := 1.4.0
+ARDUINO_MK_VER := 1.4.1
 
 # If the user has a config file to set $BOARD, etc., include it here.
 MAKE_CONF_FILE := $(HOME)/.arduino_mk.conf
@@ -256,6 +256,7 @@ __DETAILS := $(ARDUINO_CLI) board details -b $(TRUE_BOARD)
 ifeq ($(origin ARDUINO_PACKAGE), undefined)
 	ARDUINO_PACKAGE := $(strip $(shell $(__DETAILS) | grep "Package name:" | head -1 | cut -d ':' -f 2))
 endif
+ARDUINO_PACKAGE_UPPER := $(strip $(shell echo $(ARDUINO_PACKAGE) | tr [:lower:] [:upper:]))
 
 ifeq ($(origin ARCH), undefined)
 	ARCH := $(strip $(shell $(__DETAILS) | grep "Platform architecture:" | head -1 | cut -d ':' -f 2))
@@ -325,7 +326,7 @@ else ifeq ($(ARCH), samd)
 		BOSSAC := $(realpath $(FLASH_BINDIR)/$(BOSSAC_NAME))
 	endif
 	FLASH_PRGM := $(BOSSAC)
-	FLASH_ARGS = --info --debug --port=$(UPLOAD_PORT) -U --offset=0x4000 --erase --write $(flash_bin_file)
+	FLASH_ARGS = --info --debug --port=$(UPLOAD_PORT) -U --offset=0x4000 --arduino-erase --write $(flash_bin_file)
 	UPLOAD_FLASH_ARGS = $(FLASH_ARGS) --reset
 	VERIFY_FLASH_ARGS = $(FLASH_ARGS) --verify --reset
 endif
@@ -362,7 +363,14 @@ variant_dir := $(arch_root_dir)/variants/$(build_variant)
 core_subdirs = . $(shell find $(core_dir) -type d -printf '%P\n')
 
 include_dirs += $(addprefix $(core_dir)/,$(core_subdirs)) $(variant_dir)
+
 CFLAGS += -DARCH_$(arch_upper) -DARDUINO_ARCH_$(arch_upper)
+CFLAGS += -DARDUINO_$(arch_upper)_$(ARDUINO_PACKAGE_UPPER)
+
+# Act as if we are a 1.8.0 Arduino IDE
+# This number really just needs to be > 100.
+ARDUINO_RUNTIME_VER=10800
+CFLAGS += -DARDUINO=$(ARDUINO_RUNTIME_VER)
 
 lib_dirs += $(variant_dir)
 
