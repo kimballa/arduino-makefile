@@ -1,3 +1,7 @@
 
-...
+* If there are multiple include dirs, it flattens them all into the same
+  /arduino-install/include/ destination. e.g. foo.h and bar/baz.h are just both
+  copied into .../include/{foo.h, baz.h} and the `bar/` subdir is just forgotten
+  about.
+
 
