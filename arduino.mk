@@ -91,7 +91,7 @@
 # Use `make config` to see the active configuration.
 # Use `make help` to see a list of available targets.
 
-ARDUINO_MK_VER := 1.4.1
+ARDUINO_MK_VER := 1.4.2
 
 # If the user has a config file to set $BOARD, etc., include it here.
 MAKE_CONF_FILE := $(HOME)/.arduino_mk.conf
@@ -463,7 +463,7 @@ CXXFLAGS += $(CFLAGS)
 CXXFLAGS += -Wno-error=narrowing
 
 # Additional flags specific to C++ compilation
-CXXFLAGS += -std=gnu++14
+CXXFLAGS += -std=gnu++17
 CXXFLAGS += -fno-threadsafe-statics
 
 # g++ flags to use for invoking the linker
