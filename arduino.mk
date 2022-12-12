@@ -178,12 +178,24 @@ endif
 
 ifndef include_install_dir
 ifneq ($(origin mcu_specific_h), undefined)
-include_install_dir = $(install_dir)/include/arch/$(ARCH)/$(build_mcu)
+include_install_dir_base = $(install_dir)/include/arch/$(ARCH)/$(build_mcu)
 else ifneq ($(origin arch_specific_h), undefined)
-include_install_dir = $(install_dir)/include/arch/$(ARCH)
+include_install_dir_base = $(install_dir)/include/arch/$(ARCH)
 else
-include_install_dir = $(install_dir)/include
-endif # flags controlling include_install_dir definition.
+include_install_dir_base = $(install_dir)/include
+endif # flags controlling include_install_dir_base definition.
+
+ifneq ($(origin include_install_dir_suffix), undefined)
+# User has specified a particular "suffix dir" to install the header files to.
+include_install_dir = $(include_install_dir_base)/$(include_install_dir_suffix)
+else ifeq ($(use_header_suffix_dir), 1)
+# User has requested that the libname be used as a header installation suffix dir.
+include_install_dir = $(include_install_dir_base)/$(lib_name)
+else
+# Just use the "base" header installation dir.
+include_install_dir = $(include_install_dir_base)
+endif # if suffix dir defined
+
 endif # if include_install_dir already defined
 endif # if creating a library
 

@@ -16,6 +16,13 @@ prog_name := Your_App_Name
 #arch_specific_h := 1
 #mcu_specific_h := 1
 
+# Uncomment the following line to install your lib's headers to /default/include/path/${lib_name}
+#use_header_suffix_dir := 1
+
+# Alternatively, use the following line to install your lib's headers to a different subpath
+# of the default include path:
+#include_install_dir_suffix := somedirname
+
 # Other libraries you depend on. If you depend on libfoo.a, write 'foo'.
 # If a library 'foo' depends on another library 'bar', you must enumerate both
 # (`libs := foo bar`).  Further, you *must* list foo /before/ bar, otherwise you will see
