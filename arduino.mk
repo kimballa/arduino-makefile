@@ -92,11 +92,12 @@
 # Use `make help` to see a list of available targets.
 
 ARDUINO_MK_VER := 1.5.0
+ARDUINO_MK_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 
 # If the user has a config file to set $BOARD, etc., include it here.
 MAKE_CONF_FILE := $(HOME)/.arduino_mk.conf
 ifeq ($(shell ls -1 $(MAKE_CONF_FILE) 2>/dev/null),$(MAKE_CONF_FILE))
-$(info Loading config file: $(MAKE_CONF_FILE)...)
+$(info Loading user config file: $(MAKE_CONF_FILE)...)
 include $(MAKE_CONF_FILE)
 endif
 
@@ -168,7 +169,11 @@ endif
 
 ifndef install_headers
 # Calculate list of header files to use with `make install`
-install_headers = $(foreach dir,$(install_header_dirs),$(wildcard $(dir)/*.h))
+install_headers_raw := $(foreach dir,$(install_header_dirs),$(wildcard $(dir)/*.h))
+ifndef install_headers_root
+install_headers_root := $(shell $(ARDUINO_MK_DIR)/common-prefix.py $(install_headers_raw))
+endif
+install_headers = $(install_headers_raw:$(install_headers_root)%=%)
 endif
 
 ifndef include_install_dir
@@ -844,7 +849,7 @@ install: $(TARGET)
 	mkdir -p $(include_install_dir)
 	mkdir -p $(install_dir)/lib/arch/$(ARCH)/$(build_mcu)/
 	cp $(TARGET) $(install_dir)/lib/arch/$(ARCH)/$(build_mcu)/
-	cp $(install_headers) $(include_install_dir)
+	cd $(install_headers_root) && rsync -R $(install_headers) $(include_install_dir)
 
 lint:
 	arduino-lint
