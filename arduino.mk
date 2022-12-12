@@ -91,7 +91,7 @@
 # Use `make config` to see the active configuration.
 # Use `make help` to see a list of available targets.
 
-ARDUINO_MK_VER := 1.4.2
+ARDUINO_MK_VER := 1.4.3
 
 # If the user has a config file to set $BOARD, etc., include it here.
 MAKE_CONF_FILE := $(HOME)/.arduino_mk.conf
@@ -414,6 +414,7 @@ ifeq ($(ARCH), samd)
 	# Add flags specific to Atmel/ARM standard library paths: math and signal processing lib code
 	# is outside default search path; needed by Arduino core.
 	include_dirs += $(CMSIS_ATMEL_DIR)/CMSIS/Device/ATMEL
+	include_dirs += $(CMSIS_ATMEL_DIR)/CMSIS-Atmel/CMSIS/Device/ATMEL
 	include_dirs += $(CMSIS_DIR)/CMSIS/Core/Include
 	include_dirs += $(CMSIS_DIR)/CMSIS/DSP/Include
 
@@ -424,6 +425,7 @@ ifeq ($(ARCH), samd)
 	LDFLAGS += --specs=nano.specs --specs=nosys.specs
 	# Add ARM CMSIS standard library paths for linker.
 	lib_dirs += $(CMSIS_DIR)/CMSIS/Lib/GCC
+	lib_dirs += $(CMSIS_DIR)/CMSIS/DSP/Lib/GCC
 endif
 
 # Define flags for architecture-specific ldscript if available.
