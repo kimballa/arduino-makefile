@@ -580,6 +580,7 @@ CMSIS_ATMEL_DIR := $(CMSIS_ATMEL_DIR)
 endef
 
 $(info Caching configuration to file: $(CACHED_ARDUINO_CONF_FILE)...)
+mkdir_cached_file_out := $(shell mkdir -p `dirname "$(CACHED_ARDUINO_CONF_FILE)"`)
 make_cached_file_out := $(shell echo '$(CACHED_ARDUINO_CONF_TEXT)' > "$(CACHED_ARDUINO_CONF_FILE)")
 append_cached_file_out := $(shell echo '$(CACHED_ARCH_VARS)' >> "$(CACHED_ARDUINO_CONF_FILE)")
 
