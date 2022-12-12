@@ -91,7 +91,7 @@
 # Use `make config` to see the active configuration.
 # Use `make help` to see a list of available targets.
 
-ARDUINO_MK_VER := 1.4.3
+ARDUINO_MK_VER := 1.5.0
 
 # If the user has a config file to set $BOARD, etc., include it here.
 MAKE_CONF_FILE := $(HOME)/.arduino_mk.conf
@@ -196,30 +196,6 @@ SHELL ?= /bin/bash
 
 src_extensions ?= .ino .cpp .cxx .C .c .S
 
-
-# ARDUINO_DATA_DIR: Where does arduino-cli store its toolchain packages?
-__data_dir_1 = $(strip $(shell $(ARDUINO_CLI) config dump | grep 'data' | head -1 | cut -d ':' -f 2))
-ifndef ARDUINO_DATA_DIR
-	ARDUINO_DATA_DIR := $(strip $(__data_dir_1))
-endif
-
-ifndef BOARD
-BOARD := auto
-endif
-
-ifeq ($(BOARD), auto)
-	# The user has asked us to auto-detect the board fqbn.
-	# Use the first board in the list from `arduino-cli board list`
-	TRUE_BOARD = $(strip $(shell $(ARDUINO_CLI) board list --no-color | awk '{ if (NR == 2) print $$(NF-1) }'))
-else
-  TRUE_BOARD = $(BOARD)
-endif
-
-ifeq ($(TRUE_BOARD),)
-$(error "Empty board name specified or could not auto-detect board. You must specify BOARD=some:fqbn:here")
-endif
-
-
 ifndef prog_name
 ifndef lib_name
 $(error "You must specify a target program with `prog_name` or target lib with `lib_name` to compile.")
@@ -240,23 +216,63 @@ TARGET = $(build_dir)/lib$(lib_name).a
 endif
 endif
 
-# Specific Arduino variant within fqbn.
-VARIANT := $(strip $(shell echo $(TRUE_BOARD) | head -1 | cut -d ':' -f 3))
+eeprom_file = $(build_dir)/$(prog_name).eep
+flash_hex_file = $(build_dir)/$(prog_name).hex
+flash_bin_file = $(build_dir)/$(prog_name).bin
 
-# Based on the current $TRUE_BOARD, look up complete toolchain information from
-# output of `arduino-cli board details`; set the command to call here:
-__DETAILS := $(ARDUINO_CLI) board details -b $(TRUE_BOARD)
+CACHED_ARDUINO_CONF_FILE := $(build_dir)/arduno-conf.mk
+ifeq ($(shell ls -1 $(CACHED_ARDUINO_CONF_FILE) 2>/dev/null),$(CACHED_ARDUINO_CONF_FILE))
 
-# What we are searching for is values to assign to the following variables, which may be overridden
-# in advance:
-# ARDUINO_PACKAGE - should be 'arduino', 'adafruit', etc; subdir of packages/
-# ARCH - should be 'avr', 'samd', etc.
-# ARCH_VER - version number for the arch (core file, etc.)
-# AVR_CXX - the fully-resolved path to the cross-compiler.
+	# If we have already run arduino-cli to discover the build requirements, load them from
+	# the cached makefile fragment.
+$(info Loading cached Arduino config: $(CACHED_ARDUINO_CONF_FILE)...)
+include $(CACHED_ARDUINO_CONF_FILE)
+
+else ### (if cached arduino conf file exists) ###
+
+	# Need to run arduino-cli to discover dependencies. This will take a couple of seconds.
+	# Cache the results in $(CACHED_ARDUINO_CONF_FILE).
+$(info Discovering Arduino build configuration...)
+
+	# ARDUINO_DATA_DIR: Where does arduino-cli store its toolchain packages?
+	__data_dir_1 = $(strip $(shell $(ARDUINO_CLI) config dump | grep 'data' | head -1 | cut -d ':' -f 2))
+ifndef ARDUINO_DATA_DIR
+	ARDUINO_DATA_DIR := $(strip $(__data_dir_1))
+endif
+
+ifndef BOARD
+	BOARD := auto
+endif
+
+ifeq ($(BOARD), auto)
+	# The user has asked us to auto-detect the board fqbn.
+	# Use the first board in the list from `arduino-cli board list`
+	TRUE_BOARD = $(strip $(shell $(ARDUINO_CLI) board list --no-color | awk '{ if (NR == 2) print $$(NF-1) }'))
+else
+  TRUE_BOARD = $(BOARD)
+endif
+
+ifeq ($(TRUE_BOARD),)
+$(error "Empty board name specified or could not auto-detect board. You must specify BOARD=some:fqbn:here")
+endif
+
+	# Specific Arduino variant within fqbn.
+	VARIANT := $(strip $(shell echo $(TRUE_BOARD) | head -1 | cut -d ':' -f 3))
+
+	# Based on the current $TRUE_BOARD, look up complete toolchain information from
+	# output of `arduino-cli board details`; set the command to call here:
+	__DETAILS := $(ARDUINO_CLI) board details -b $(TRUE_BOARD)
+
+	# What we are searching for is values to assign to the following variables, which may be overridden
+	# in advance:
+	# ARDUINO_PACKAGE - should be 'arduino', 'adafruit', etc; subdir of packages/
+	# ARCH - should be 'avr', 'samd', etc.
+	# ARCH_VER - version number for the arch (core file, etc.)
+	# AVR_CXX - the fully-resolved path to the cross-compiler.
 ifeq ($(origin ARDUINO_PACKAGE), undefined)
 	ARDUINO_PACKAGE := $(strip $(shell $(__DETAILS) | grep "Package name:" | head -1 | cut -d ':' -f 2))
 endif
-ARDUINO_PACKAGE_UPPER := $(strip $(shell echo $(ARDUINO_PACKAGE) | tr [:lower:] [:upper:]))
+	ARDUINO_PACKAGE_UPPER := $(strip $(shell echo $(ARDUINO_PACKAGE) | tr [:lower:] [:upper:]))
 
 ifeq ($(origin ARCH), undefined)
 	ARCH := $(strip $(shell $(__DETAILS) | grep "Platform architecture:" | head -1 | cut -d ':' -f 2))
@@ -265,11 +281,10 @@ ifeq ($(origin ARCH_VER), undefined)
   ARCH_VER := $(strip $(shell $(__DETAILS) | grep "Board version:" | head -1 | cut -d ':' -f 2))
 endif
 
-
-__COMPILER_TOOLS := $(strip $(shell $(__DETAILS) | grep "Required tool" | grep "gcc" | head -1 ))
-COMPILER_TOOLS_DIR := $(strip $(shell echo "$(__COMPILER_TOOLS)" | cut -d ' ' -f 3 | cut -d ':' -f 2))
-COMPILER_VERSION := $(strip $(shell echo "$(__COMPILER_TOOLS)" | cut -d ' ' -f 4))
-COMPILER_BINDIR := $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/tools/$(COMPILER_TOOLS_DIR)/$(COMPILER_VERSION)/bin
+	__COMPILER_TOOLS := $(strip $(shell $(__DETAILS) | grep "Required tool" | grep "gcc" | head -1 ))
+	COMPILER_TOOLS_DIR := $(strip $(shell echo "$(__COMPILER_TOOLS)" | cut -d ' ' -f 3 | cut -d ':' -f 2))
+	COMPILER_VERSION := $(strip $(shell echo "$(__COMPILER_TOOLS)" | cut -d ' ' -f 4))
+	COMPILER_BINDIR := $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/tools/$(COMPILER_TOOLS_DIR)/$(COMPILER_VERSION)/bin
 ifeq ($(origin AVR_CXX), undefined)
 	COMPILER_NAME := $(strip $(shell ls -1 $(COMPILER_BINDIR) | grep -e 'g++$$' | head -1))
 	# We have found the fully-qualified path to the g++ to use.
@@ -288,13 +303,13 @@ ifeq ($(origin AVR_SIZE), undefined)
 	AVR_SIZE := $(realpath $(COMPILER_BINDIR)/$(SIZE_NAME))
 endif
 
-CXX := $(AVR_CXX)
-AR := $(AVR_AR)
-OBJCOPY := $(AVR_OBJCOPY)
-SIZE := $(AVR_SIZE)
+	CXX := $(AVR_CXX)
+	AR := $(AVR_AR)
+	OBJCOPY := $(AVR_OBJCOPY)
+	SIZE := $(AVR_SIZE)
 
-# Identify the flash uploader tool to use based on the target architecture.
-# `avrdude` for AVR platforms, `bossac` for ARM.
+	# Identify the flash uploader tool to use based on the target architecture.
+	# `avrdude` for AVR platforms, `bossac` for ARM.
 ifeq ($(ARCH), avr)
 	__FLASH_TOOLS := $(strip $(shell $(__DETAILS) | grep "Required tool" | grep "avrdude" | tail -1 ))
 	FLASH_VENDOR := $(strip $(shell echo "$(__FLASH_TOOLS)" | cut -d ' ' -f 3 | cut -d ':' -f 1))
@@ -331,57 +346,57 @@ else ifeq ($(ARCH), samd)
 	VERIFY_FLASH_ARGS = $(FLASH_ARGS) --verify --reset
 endif
 
-arch_root_dir = $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/hardware/$(ARCH)/$(ARCH_VER)
-arch_upper := $(strip $(shell echo $(ARCH) | tr [:lower:] [:upper:]))
+	arch_root_dir = $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/hardware/$(ARCH)/$(ARCH_VER)
+	arch_upper := $(strip $(shell echo $(ARCH) | tr [:lower:] [:upper:]))
 
-# Board definitions file for this hardware set.
-boards_txt := "$(arch_root_dir)/boards.txt"
+	# Board definitions file for this hardware set.
+	boards_txt := "$(arch_root_dir)/boards.txt"
 
-# Optimization flags to add to CFLAGS and LDFLAGS.
-OPTFLAGS += -Os -fdata-sections -ffunction-sections -Wl,--relax,--gc-sections
+	# Optimization flags to add to CFLAGS and LDFLAGS.
+	OPTFLAGS += -Os -fdata-sections -ffunction-sections -Wl,--relax,--gc-sections
 
-# Debug-mode compilation options.
+	# Debug-mode compilation options.
 ifeq ($(origin DBGFLAGS), undefined)
 	DBGFLAGS = -g
 endif
 
-# Compiler flags we (might) want from arduino-ide's option set.
-CFLAGS += $(OPTFLAGS)
-CFLAGS += $(DBGFLAGS)
+	# Compiler flags we (might) want from arduino-ide's option set.
+	CFLAGS += $(OPTFLAGS)
+	CFLAGS += $(DBGFLAGS)
 
-# Compiler flags we need
+	# Compiler flags we need
 
-# This may be slightly different than $(VARIANT); indicates directory under /variants/
-build_variant := $(strip $(shell grep -e "^$(VARIANT).build.variant" $(boards_txt) | cut -d '=' -f 2-))
+	# This may be slightly different than $(VARIANT); indicates directory under /variants/
+	build_variant := $(strip $(shell grep -e "^$(VARIANT).build.variant" $(boards_txt) | cut -d '=' -f 2-))
 
-core_dir := $(arch_root_dir)/cores/arduino
-variant_dir := $(arch_root_dir)/variants/$(build_variant)
+	core_dir := $(arch_root_dir)/cores/arduino
+	variant_dir := $(arch_root_dir)/variants/$(build_variant)
 
-# What directory structure exists under /core/ that we should pay attention to?
-# Used for -I as well as copying core files to build target.
-# Add a '.' on the front to capture the root of the $core_dir/ search (otherwise it's an empty str)
-core_subdirs = . $(shell find $(core_dir) -type d -printf '%P\n')
+	# What directory structure exists under /core/ that we should pay attention to?
+	# Used for -I as well as copying core files to build target.
+	# Add a '.' on the front to capture the root of the $core_dir/ search (otherwise it's an empty str)
+	core_subdirs = . $(shell find $(core_dir) -type d -printf '%P\n')
 
-include_dirs += $(addprefix $(core_dir)/,$(core_subdirs)) $(variant_dir)
+	include_dirs += $(addprefix $(core_dir)/,$(core_subdirs)) $(variant_dir)
 
-CFLAGS += -DARCH_$(arch_upper) -DARDUINO_ARCH_$(arch_upper)
-CFLAGS += -DARDUINO_$(arch_upper)_$(ARDUINO_PACKAGE_UPPER)
+	CFLAGS += -DARCH_$(arch_upper) -DARDUINO_ARCH_$(arch_upper)
+	CFLAGS += -DARDUINO_$(arch_upper)_$(ARDUINO_PACKAGE_UPPER)
 
-# Act as if we are a 1.8.0 Arduino IDE
-# This number really just needs to be > 100.
-ARDUINO_RUNTIME_VER=10800
-CFLAGS += -DARDUINO=$(ARDUINO_RUNTIME_VER)
+	# Act as if we are a 1.8.0 Arduino IDE
+	# This number really just needs to be > 100.
+	ARDUINO_RUNTIME_VER=10800
+	CFLAGS += -DARDUINO=$(ARDUINO_RUNTIME_VER)
 
-lib_dirs += $(variant_dir)
+	lib_dirs += $(variant_dir)
 
-# Get 'extra_flags' from boards.txt; disregard any requested interpolations
-raw_extra_flags := $(strip $(shell grep -e "^$(VARIANT).build.extra_flags" $(boards_txt) | cut -d '=' -f 2-))
-extra_flags := $(strip $(shell echo "$(raw_extra_flags)" | sed -e 's/{.*}//'))
-CFLAGS += $(extra_flags)
+	# Get 'extra_flags' from boards.txt; disregard any requested interpolations
+	raw_extra_flags := $(strip $(shell grep -e "^$(VARIANT).build.extra_flags" $(boards_txt) | cut -d '=' -f 2-))
+	extra_flags := $(strip $(shell echo "$(raw_extra_flags)" | sed -e 's/{.*}//'))
+	CFLAGS += $(extra_flags)
 
-# Add architecture-specific compiler and linker flags.
-# At minimum, we need to specify the architecture and subarchitecture/step compilation target.
-build_mcu := $(strip $(shell grep -e "^$(VARIANT).build.mcu" $(boards_txt) | cut -d '=' -f 2-))
+	# Add architecture-specific compiler and linker flags.
+	# At minimum, we need to specify the architecture and subarchitecture/step compilation target.
+	build_mcu := $(strip $(shell grep -e "^$(VARIANT).build.mcu" $(boards_txt) | cut -d '=' -f 2-))
 ifeq ($(ARCH), avr)
 	# AVR-specific compiler options.
 	CFLAGS += -mmcu=$(build_mcu)
@@ -428,57 +443,148 @@ ifeq ($(ARCH), samd)
 	lib_dirs += $(CMSIS_DIR)/CMSIS/DSP/Lib/GCC
 endif
 
-# Define flags for architecture-specific ldscript if available.
-linker_script_arg := $(strip $(shell grep -e "^$(VARIANT).build.ldscript" $(boards_txt) | cut -d '=' -f 2-))
+	# Define flags for architecture-specific ldscript if available.
+	linker_script_arg := $(strip $(shell grep -e "^$(VARIANT).build.ldscript" $(boards_txt) | cut -d '=' -f 2-))
 ifneq ($(linker_script_arg),)
 	# We have a custom linker script to deploy; its path is relative to the variant dir.
   linker_script := $(variant_dir)/$(linker_script_arg)
 	LDFLAGS += -T$(linker_script)
 endif
 
-build_board_def := $(strip $(shell grep -e "^$(VARIANT).build.board" $(boards_txt) | cut -d '=' -f 2))
-CFLAGS += -DARDUINO_$(build_board_def) # e.g. -DARDUINO_AVR_LEONARDO
+	build_board_def := $(strip $(shell grep -e "^$(VARIANT).build.board" $(boards_txt) | cut -d '=' -f 2))
+	CFLAGS += -DARDUINO_$(build_board_def) # e.g. -DARDUINO_AVR_LEONARDO
 
-build_f_cpu := $(strip $(shell grep -e "^$(VARIANT).build.f_cpu" $(boards_txt) | cut -d '=' -f 2))
-CFLAGS += -DF_CPU=$(build_f_cpu)
+	build_f_cpu := $(strip $(shell grep -e "^$(VARIANT).build.f_cpu" $(boards_txt) | cut -d '=' -f 2))
+	CFLAGS += -DF_CPU=$(build_f_cpu)
 
-build_vid := $(strip $(shell grep -e "^$(VARIANT).build.vid" $(boards_txt) | cut -d '=' -f 2))
-CFLAGS += -DUSB_VID=$(build_vid)
+	build_vid := $(strip $(shell grep -e "^$(VARIANT).build.vid" $(boards_txt) | cut -d '=' -f 2))
+	CFLAGS += -DUSB_VID=$(build_vid)
 
-build_pid := $(strip $(shell grep -e "^$(VARIANT).build.pid" $(boards_txt) | cut -d '=' -f 2))
-CFLAGS += -DUSB_PID=$(build_pid)
+	build_pid := $(strip $(shell grep -e "^$(VARIANT).build.pid" $(boards_txt) | cut -d '=' -f 2))
+	CFLAGS += -DUSB_PID=$(build_pid)
 
-build_usb_product := $(strip $(shell grep -e "^$(VARIANT).build.usb_product" $(boards_txt) | cut -d '=' -f 2))
-build_usb_mfr := $(strip $(shell grep -e "^$(VARIANT).build.usb_manufacturer" $(boards_txt) | \
-		cut -d '=' -f 2))
-CFLAGS += "-DUSB_PRODUCT=\"\"$(subst ",\",$(build_usb_product))\"\""
-CFLAGS += "-DUSB_MANUFACTURER=\"\"$(subst ",\",$(build_usb_mfr))\"\""
+	build_usb_product := $(strip $(shell grep -e "^$(VARIANT).build.usb_product" $(boards_txt) | cut -d '=' -f 2))
+	build_usb_mfr := $(strip $(shell grep -e "^$(VARIANT).build.usb_manufacturer" $(boards_txt) | \
+			cut -d '=' -f 2))
+	CFLAGS += "-DUSB_PRODUCT=\"\"$(subst ",\",$(build_usb_product))\"\""
+	CFLAGS += "-DUSB_MANUFACTURER=\"\"$(subst ",\",$(build_usb_mfr))\"\""
 
-CFLAGS += -fno-exceptions
+	CFLAGS += -fno-exceptions
 
-CFLAGS += $(include_flags)
+	CFLAGS += $(include_flags)
 
 
-# Include all the CFLAGS for C++ too.
-CXXFLAGS += $(CFLAGS)
-# TODO(aaron): Questionable to enforce by default... do we want to? (arduino-ide does...)
-CXXFLAGS += -Wno-error=narrowing
+	# Include all the CFLAGS for C++ too.
+	CXXFLAGS += $(CFLAGS)
+	# TODO(aaron): Questionable to enforce by default... do we want to? (arduino-ide does...)
+	CXXFLAGS += -Wno-error=narrowing
 
-# Additional flags specific to C++ compilation
-CXXFLAGS += -std=gnu++17
-CXXFLAGS += -fno-threadsafe-statics
+	# Additional flags specific to C++ compilation
+	CXXFLAGS += -std=gnu++17
+	CXXFLAGS += -fno-threadsafe-statics
 
-# g++ flags to use for invoking the linker
-LDFLAGS += $(OPTFLAGS) $(DBGFLAGS) -w -fuse-linker-plugin $(LDARCH)
+	# g++ flags to use for invoking the linker
+	LDFLAGS += $(OPTFLAGS) $(DBGFLAGS) -w -fuse-linker-plugin $(LDARCH)
 
-# Get additional LDFLAGS from boards.txt; disregard any lib dirs (we add separately).
-# Mostly kicking those out because they involve interpolations we can't do.
-raw_board_ld_flags := $(strip $(shell \
-		grep -e "^$(VARIANT).compiler.*ldflags=" $(boards_txt) | cut -d '=' -f 2-))
-board_ld_flags := $(strip $(shell \
-	echo '$(raw_board_ld_flags)' | awk 'BEGIN {RS=" "} !/-L/ {print $$1}' | xargs))
+	# Get additional LDFLAGS from boards.txt; disregard any lib dirs (we add separately).
+	# Mostly kicking those out because they involve interpolations we can't do.
+	raw_board_ld_flags := $(strip $(shell \
+			grep -e "^$(VARIANT).compiler.*ldflags=" $(boards_txt) | cut -d '=' -f 2-))
+	board_ld_flags := $(strip $(shell \
+		echo '$(raw_board_ld_flags)' | awk 'BEGIN {RS=" "} !/-L/ {print $$1}' | xargs))
 
-LDFLAGS += $(board_ld_flags)
+	LDFLAGS += $(board_ld_flags)
+
+# Now that we've invested the time in discovering all these settings, write them out
+# to a file that can be reloaded more quickly for the next build.
+define CACHED_ARDUINO_CONF_TEXT
+ARDUINO_DATA_DIR := $(ARDUINO_DATA_DIR)\n
+BOARD := $(BOARD)\n
+TRUE_BOARD := $(TRUE_BOARD)\n
+VARIANT := $(VARIANT)\n
+__DETAILS := $(__DETAILS)\n
+ARDUINO_PACKAGE := $(ARDUINO_PACKAGE)\n
+ARDUINO_PACKAGE_UPPER := $(ARDUINO_PACKAGE_UPPER)\n
+ARCH := $(ARCH)\n
+ARCH_VER := $(ARCH_VER)\n
+__COMPILER_TOOLS := $(__COMPILER_TOOLS)\n
+COMPILER_TOOLS_DIR := $(COMPILER_TOOLS_DIR)\n
+COMPILER_VERSION := $(COMPILER_VERSION)\n
+COMPILER_BINDIR := $(COMPILER_BINDIR)\n
+COMPILER_NAME := $(COMPILER_NAME)\n
+AVR_CXX := $(AVR_CXX)\n
+AR_NAME := $(AR_NAME)\n
+AVR_AR := $(AVR_AR)\n
+OBJCOPY_NAME := $(OBJCOPY_NAME)\n
+AVR_OBJCOPY := $(AVR_OBJCOPY)\n
+SIZE_NAME := $(SIZE_NAME)\n
+AVR_SIZE := $(AVR_SIZE)\n
+CXX := $(CXX)\n
+AR := $(AR)\n
+OBJCOPY := $(OBJCOPY)\n
+SIZE := $(SIZE)\n
+__FLASH_TOOLS := $(__FLASH_TOOLS)\n
+__FLASH_VENDOR := $(__FLASH_VENDOR)\n
+FLASH_TOOLS_DIR := $(FLASH_TOOLS_DIR)\n
+FLASH_VERSION := $(FLASH_VERSION)\n
+FLASH_BINDIR := $(FLASH_BINDIR)\n
+FLASH_PRGM := $(FLASH_PRGM)\n
+FLASH_ARGS := $(FLASH_ARGS)\n
+UPLOAD_FLASH_ARGS := $(UPLOAD_FLASH_ARGS)\n
+VERIFY_FLASH_ARGS := $(VERIFY_FLASH_ARGS)\n
+arch_root_dir := $(arch_root_dir)\n
+arch_upper := $(arch_upper)\n
+boards_txt := $(boards_txt)\n
+OPTFLAGS := $(OPTFLAGS)\n
+DBGFLAGS := $(DBGFLAGS)\n
+CFLAGS := $(CFLAGS)\n
+CXXFLAGS := $(CXXFLAGS)\n
+build_variant := $(build_variant)\n
+core_dir := $(core_dir)\n
+variant_dir := $(variant_dir)\n
+core_subdirs := $(core_subdirs)\n
+include_dirs := $(include_dirs)\n
+ARDUINO_RUNTIME_VER := $(ARDUINO_RUNTIME_VER)\n
+lib_dirs := $(lib_dirs)\n
+raw_extra_flags := $(raw_extra_flags)\n
+extra_flags := $(extra_flags)\n
+build_mcu := $(build_mcu)\n
+LDARCH := $(LDARCH)\n
+LDFLAGS := $(LDFLAGS)\n
+linker_script_arg := $(linker_script_arg)\n
+build_board_def := $(build_board_def)\n
+build_f_cpu := $(build_f_cpu)\n
+build_vid := $(build_vid)\n
+build_pid := $(build_pid)\n
+build_usb_product := $(build_usb_product)\n
+build_usb_mfr := $(build_usb_mfr)\n
+raw_board_ld_flags := $(raw_board_ld_flags)\n
+board_ld_flags := $(board_ld_flags)
+endef # CACHED_ARDUINO_CONF_TEXT
+
+# avr-specific variables:
+define CACHED_ARCH_VARS
+AVRDUDE_NAME := $(AVRDUDE_NAME)\n
+AVRDUDE := $(AVRDUDE)\n
+AVRDUDE_CONF := $(AVRDUDE_CONF)
+endef
+
+# samd-specific variables:
+define CACHED_ARCH_VARS
+BOSSAC_NAME := $(BOSSAC_NAME)\n
+BOSSAC := $(BOSSAC)\n
+CMSIS_VER := $(CMSIS_VER)\n
+CMSIS_ATMEL_VER := $(CMSIS_ATMEL_VER)\n
+CMSIS_DIR := $(CMSIS_DIR)\n
+CMSIS_ATMEL_DIR := $(CMSIS_ATMEL_DIR)
+endef
+
+$(info Caching configuration to file: $(CACHED_ARDUINO_CONF_FILE)...)
+make_cached_file_out := $(shell echo '$(CACHED_ARDUINO_CONF_TEXT)' > "$(CACHED_ARDUINO_CONF_FILE)")
+append_cached_file_out := $(shell echo '$(CACHED_ARCH_VARS)' >> "$(CACHED_ARDUINO_CONF_FILE)")
+
+endif ### (if cached arduino conf file exists) ###
+
 
 # Finally, add extra 'XFLAGS' at end of each cli arg set.
 CFLAGS += $(XFLAGS)
@@ -633,10 +739,6 @@ core: $(core_lib)
 
 src_files = $(filter %,$(foreach dir,$(src_dirs),$(foreach ext,$(src_extensions),$(wildcard $(dir)/*$(ext)))))
 obj_files = $(filter %.o,$(foreach ext,$(src_extensions),$(patsubst %$(ext),%.o,$(src_files))))
-
-eeprom_file = $(build_dir)/$(prog_name).eep
-flash_hex_file = $(build_dir)/$(prog_name).hex
-flash_bin_file = $(build_dir)/$(prog_name).bin
 
 max_sketch_size := $(strip $(shell grep -e "^$(VARIANT).upload.maximum_size" $(boards_txt) \
 	| cut -d '=' -f 2 | tr -s ' '))
