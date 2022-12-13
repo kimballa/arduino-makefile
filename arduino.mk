@@ -176,13 +176,18 @@ endif
 install_headers = $(install_headers_raw:$(install_headers_root)%=%)
 endif
 
+# Directories where header files for Arduino libraries are installed to.
+include_root=$(install_dir)/include
+arch_include_root=$(include_root)/arch/$(ARCH)
+mcu_include_root=$(arch_include_root)/$(build_mcu)
+
 ifndef include_install_dir
 ifneq ($(origin mcu_specific_h), undefined)
-include_install_dir_base = $(install_dir)/include/arch/$(ARCH)/$(build_mcu)
+include_install_dir_base = $(mcu_include_root)
 else ifneq ($(origin arch_specific_h), undefined)
-include_install_dir_base = $(install_dir)/include/arch/$(ARCH)
+include_install_dir_base = $(arch_include_root)
 else
-include_install_dir_base = $(install_dir)/include
+include_install_dir_base = $(include_root)
 endif # flags controlling include_install_dir_base definition.
 
 ifneq ($(origin include_install_dir_suffix), undefined)
@@ -660,9 +665,12 @@ endif
 	@echo ""
 	@echo "System paths:"
 	@echo "===================================="
-	@echo "install_dir   : $(install_dir)"
-	@echo "include_dirs  : $(include_dirs)"
-	@echo "lib_dirs      : $(lib_dirs)"
+	@echo "install_dir       : $(install_dir)"
+	@echo "include_dirs      : $(include_dirs)"
+	@echo "lib_dirs          : $(lib_dirs)"
+	@echo "include_root      : $(include_root)"
+	@echo "arch_include_root : $(arch_include_root)"
+	@echo "mcu_include_root  : $(mcu_include_root)"
 	@echo ""
 	@echo "Options:"
 	@echo "===================================="

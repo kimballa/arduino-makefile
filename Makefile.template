@@ -32,6 +32,17 @@ libs := wire
 # List all directories of source files. The current directory '.' is included by default.
 src_dirs := .
 
+# Add further include or lib paths with:
+# include_dirs += (dir1) (dir2) (dir3)...
+# lib_dirs += (some_dir)
+# These dir names each be prefixed with -I or -L as appropriate. Useful macros to reference
+# are $(include_root), $(arch_include_root), and $(mcu_include_root) for where lib-specific
+# headers may have been installed as a subdir. These dirs are themselves already on the -I
+# path, and the mcu-specific lib dir is already on the -L path.
+
+# Add any other compilation flags necessary:
+# XFLAGS += (...)
+
 # Finally, include the main makefile library.
 # This creates targets like 'all', 'install', 'upload', 'clean'...
 include ../arduino-makefile/arduino.mk
