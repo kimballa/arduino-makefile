@@ -58,12 +58,15 @@
 #               `make` command line rather than to set within the config file directly.
 #
 #   install_headers - Specific list of header files to copy in `make install`;
-#                     default is *.h in each of $(install_header_dirs)
-#   install_header_dirs - List of dirs containing *.h files to install. Defaults to $(src_dirs).
+#                     default is *.h in each of $(install_header_dirs).
+#   install_header_dirs  - List of dirs containing *.h files to install. Defaults to $(src_dirs).
 #   include_install_dir  - Directory where headers are copied to.
-#   											Defaults to $(install_dir)/include
+#                          Defaults to $(install_dir)/include/.
 #   arch_specific_h - If defined, sets include_install_dir to an arch-specific subdir of include/.
 #   mcu_specific_h  - If defined, sets include_install_dir to an MCU-specific subdir of include/.
+#   use_header_suffix_dir - If set to 1, headers are copied to $(include_install_dir)/$(lib_name).
+#   include_install_dir_suffix - If defined, headers are copied to
+#                                $(include_install_dir)/$(include_install_dir_suffix).
 #
 # You can use the example Makefile (`Makefile.template`) as a basis to work from to get started
 # quickly:
@@ -99,6 +102,9 @@ MAKE_CONF_FILE := $(HOME)/.arduino_mk.conf
 ifeq ($(shell ls -1 $(MAKE_CONF_FILE) 2>/dev/null),$(MAKE_CONF_FILE))
 $(info Loading user config file: $(MAKE_CONF_FILE)...)
 include $(MAKE_CONF_FILE)
+else
+$(info No user config file found; it is recommended you copy arduino_mk_conf.template to)
+$(info ~/.arduino_mk.conf and customize the template there.)
 endif
 
 
@@ -151,12 +157,21 @@ TAGS_FILE = tags
 # Set variables for compilation dependencies
 
 ifneq (,$(install_dir))
-include_dirs += $(install_dir)/include/arch/$(ARCH)/$(build_mcu)
-include_dirs += $(install_dir)/include/arch/$(ARCH)
-include_dirs += $(install_dir)/include
+# Directories where header files for Arduino libraries are installed to.
+include_root=$(install_dir)/include
+arch_include_root=$(include_root)/arch/$(ARCH)
+mcu_include_root=$(arch_include_root)/$(build_mcu)
+
+include_dirs += $(mcu_include_root)
+include_dirs += $(arch_include_root)
+include_dirs += $(include_root)
 
 lib_dirs += $(install_dir)/lib/arch/$(ARCH)/$(build_mcu)
-endif
+else
+$(info Warning: $$install_dir is not defined. It is recommended you set this in ~/.arduno_mk.conf)
+$(info so that libraries and header files can be located.)
+$(info )
+endif # install_dir
 
 include_flags = $(addprefix -I,$(include_dirs))
 lib_flags = $(addprefix -L,$(lib_dirs)) $(addprefix -l,$(libs))
@@ -175,11 +190,6 @@ install_headers_root := $(shell $(ARDUINO_MK_DIR)/common-prefix.py $(install_hea
 endif
 install_headers = $(install_headers_raw:$(install_headers_root)%=%)
 endif
-
-# Directories where header files for Arduino libraries are installed to.
-include_root=$(install_dir)/include
-arch_include_root=$(include_root)/arch/$(ARCH)
-mcu_include_root=$(arch_include_root)/$(build_mcu)
 
 ifndef include_install_dir
 ifneq ($(origin mcu_specific_h), undefined)
@@ -862,6 +872,10 @@ endif
 
 # Main compile/link target for libraries.
 ifneq ($(origin lib_name), undefined)
+ifeq ($(origin install_dir), undefined)
+$(error "You must specify an installation target with `install_dir` to build a library.")
+endif # defined(install_dir)
+
 library: $(TARGET)
 
 install: $(TARGET)
