@@ -173,6 +173,8 @@ $(info so that libraries and header files can be located.)
 $(info )
 endif # install_dir
 
+include_dirs += $(build_dir)/core/variant $(build_dir)/core
+
 include_flags = $(addprefix -I,$(include_dirs))
 lib_flags = $(addprefix -L,$(lib_dirs)) $(addprefix -l,$(libs))
 
@@ -409,7 +411,7 @@ endif
 	# Add a '.' on the front to capture the root of the $core_dir/ search (otherwise it's an empty str)
 	core_subdirs = . $(shell find $(core_dir) -type d -printf '%P\n')
 
-	include_dirs += $(addprefix $(core_dir)/,$(core_subdirs)) $(variant_dir)
+	include_dirs += $(core_dir) $(variant_dir)
 
 	CFLAGS += -DARCH_$(arch_upper) -DARDUINO_ARCH_$(arch_upper)
 	CFLAGS += -DARDUINO_$(arch_upper)_$(ARDUINO_PACKAGE_UPPER)
@@ -714,6 +716,9 @@ distclean: clean
 core_cpp_filenames = $(shell find $(core_dir) -type f -name '*.cpp' -printf '%P\n')
 core_c_filenames   = $(shell find $(core_dir) -type f -name '*.c'   -printf '%P\n')
 core_asm_filenames = $(shell find $(core_dir) -type f -name '*.S'   -printf '%P\n')
+core_h_filenames   = $(shell find $(core_dir) -type f -name '*.h'   -printf '%P\n')
+
+core_h_dest_filenames = $(addprefix $(build_dir)/core/,$(core_h_filenames))
 
 # Map the directory structure under /core/ to one we should replicate in our build target dir.
 core_build_subdirs = $(addprefix $(build_dir)/core/,$(core_subdirs) variant)
@@ -727,6 +732,7 @@ core_obj_files = $(patsubst %.cpp,%.o,$(addprefix $(build_dir)/core/,$(core_cpp_
 variant_cpp_filenames = $(notdir $(wildcard $(variant_dir)/*.cpp))
 variant_c_filenames = $(notdir $(wildcard $(variant_dir)/*.c))
 variant_asm_filenames = $(notdir $(wildcard $(variant_dir)/*.S))
+variant_h_filenames = $(notdir $(wildcard) $(variant_dir)/*.h)
 variant_obj_files = $(patsubst %.cpp,%.o,$(addprefix $(build_dir)/core/variant/,$(variant_cpp_filenames))) \
 		$(patsubst %.c,%.o,$(addprefix $(build_dir)/core/variant/,$(variant_c_filenames))) \
 		$(patsubst %.S,%.o,$(addprefix $(build_dir)/core/variant/,$(variant_asm_filenames)))
@@ -743,17 +749,21 @@ $(core_lib) : $(core_setup_file) $(core_obj_files) $(variant_obj_files)
 # file to mark that this task is done, so it doesn't continually make our build out of date.
 $(core_setup_file):
 	mkdir -p $(core_build_subdirs)
+	cp -n $(variant_dir)/*.h $(build_dir)/core/variant/
 	touch $(core_setup_file)
 
 # Copy each file from the core source directory into our working copy within build/.
 
-$(build_dir)/core/%.cpp : $(core_dir)/%.cpp $(core_setup_file)
+$(build_dir)/core/%.cpp : $(core_dir)/%.cpp $(core_setup_file) $(core_h_dest_filenames)
 	cp -n $< $@
 
-$(build_dir)/core/%.c : $(core_dir)/%.c $(core_setup_file)
+$(build_dir)/core/%.c : $(core_dir)/%.c $(core_setup_file) $(core_h_dest_filenames)
 	cp -n $< $@
 
-$(build_dir)/core/%.S : $(core_dir)/%.S $(core_setup_file)
+$(build_dir)/core/%.S : $(core_dir)/%.S $(core_setup_file) $(core_h_dest_filenames)
+	cp -n $< $@
+
+$(build_dir)/core/%.h : $(core_dir)/%.h $(core_setup_file)
 	cp -n $< $@
 
 # Also copy in variant-specific sources, if any.
@@ -769,7 +779,7 @@ $(build_dir)/core/variant/%.S : $(variant_dir)/%.S $(core_setup_file)
 # Don't delete our local copy of the core source.
 .PRECIOUS: $(build_dir)/core/%.cpp $(build_dir)/core/%.c $(build_dir)/core/%.S \
 	$(build_dir)/core/variant/%.cpp $(build_dir)/core/variant/%.c $(build_dir)/core/variant/%.S \
-	$(core_setup_file)
+	$(core_setup_file) $(build_dir)/core/%.h
 
 core: $(core_lib)
 
