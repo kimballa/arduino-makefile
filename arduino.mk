@@ -186,7 +186,7 @@ endif
 
 ifndef install_headers
 # Calculate list of header files to use with `make install`
-install_headers_raw := $(foreach dir,$(install_header_dirs),$(wildcard $(dir)/*.h))
+install_headers_raw := $(abspath $(foreach dir,$(install_header_dirs),$(wildcard $(dir)/*.h)))
 ifndef install_headers_root
 install_headers_root := $(shell $(ARDUINO_MK_DIR)/common-prefix.py $(install_headers_raw))
 endif
@@ -703,6 +703,7 @@ serial:
 
 clean:
 	-rm "$(TARGET)"
+	-rm "$(CACHED_ARDUINO_CONF_FILE)"
 	-rm -r "$(build_dir)"
 	find . -name "*.o" -delete
 

@@ -10,7 +10,18 @@ def main(argv):
         print("Expected: common-prefix.py <filenames...>")
         return 1
 
-    common = os.path.commonpath(argv[1:])
+    #print(argv[1:], file=sys.stderr)
+    dirnames = list(set(argv[1:]))
+    #print(dirnames, file=sys.stderr)
+
+    if len(dirnames) == 1 and dirnames[0] in [".", "." + os.path.sep]:
+        # If we strip the solo '.' then we are left with '/' which breaks out of the cwd.
+        #print("./", file=sys.stderr)
+        print("." + os.path.sep)
+        return 0
+
+    common = os.path.commonpath(dirnames)
+    #print(common + os.path.sep, file=sys.stderr)
     print(common + os.path.sep)
     return 0
 
