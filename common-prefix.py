@@ -21,6 +21,11 @@ def main(argv):
         return 0
 
     common = os.path.commonpath(dirnames)
+    if not os.path.isdir(common):
+        # It's not a valid directory, this is a file.
+        # (occurs when a single filename was given as argument to this script.)
+        common = os.path.dirname(common)
+
     #print(common + os.path.sep, file=sys.stderr)
     print(common + os.path.sep)
     return 0
