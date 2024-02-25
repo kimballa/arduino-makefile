@@ -44,8 +44,9 @@
 #
 #   libs      - List of libraries to link (e.g., "libs = foo bar" will link with -lfoo -lbar
 #
-#   include_dirs - List of header directories to use with -I
-#   lib_dirs     - List of lib directories to use with -L
+#   include_dirs     - List of header directories to use with -I
+#   sys_include_dirs - List of header directories to use with -isystem
+#   lib_dirs     		 - List of lib directories to use with -L
 #
 #   CXXFLAGS  - Additional compiler flags
 #   LDFLAGS   - Additional linker flags
@@ -162,9 +163,9 @@ include_root=$(install_dir)/include
 arch_include_root=$(include_root)/arch/$(ARCH)
 mcu_include_root=$(arch_include_root)/$(build_mcu)
 
-include_dirs += $(mcu_include_root)
-include_dirs += $(arch_include_root)
-include_dirs += $(include_root)
+sys_include_dirs += $(mcu_include_root)
+sys_include_dirs += $(arch_include_root)
+sys_include_dirs += $(include_root)
 
 lib_dirs += $(install_dir)/lib/arch/$(ARCH)/$(build_mcu)
 else
@@ -173,9 +174,9 @@ $(info so that libraries and header files can be located.)
 $(info )
 endif # install_dir
 
-include_dirs += $(build_dir)/core/variant $(build_dir)/core
+sys_include_dirs += $(build_dir)/core/variant $(build_dir)/core
 
-include_flags = $(addprefix -I,$(include_dirs))
+include_flags = $(addprefix -I,$(include_dirs)) $(addprefix -isystem,$(sys_include_dirs))
 lib_flags = $(addprefix -L,$(lib_dirs)) $(addprefix -l,$(libs))
 
 ifdef lib_name
@@ -411,7 +412,7 @@ endif
 	# Add a '.' on the front to capture the root of the $core_dir/ search (otherwise it's an empty str)
 	core_subdirs = . $(shell find $(core_dir) -type d -printf '%P\n')
 
-	include_dirs += $(core_dir) $(variant_dir)
+	sys_include_dirs += $(core_dir) $(variant_dir)
 
 	CFLAGS += -DARCH_$(arch_upper) -DARDUINO_ARCH_$(arch_upper)
 	CFLAGS += -DARDUINO_$(arch_upper)_$(ARDUINO_PACKAGE_UPPER)
@@ -462,10 +463,10 @@ ifeq ($(ARCH), samd)
 	CFLAGS += -DUSBCON -DUSB_CONFIG_POWER=100
 	# Add flags specific to Atmel/ARM standard library paths: math and signal processing lib code
 	# is outside default search path; needed by Arduino core.
-	include_dirs += $(CMSIS_ATMEL_DIR)/CMSIS/Device/ATMEL
-	include_dirs += $(CMSIS_ATMEL_DIR)/CMSIS-Atmel/CMSIS/Device/ATMEL
-	include_dirs += $(CMSIS_DIR)/CMSIS/Core/Include
-	include_dirs += $(CMSIS_DIR)/CMSIS/DSP/Include
+	sys_include_dirs += $(CMSIS_ATMEL_DIR)/CMSIS/Device/ATMEL
+	sys_include_dirs += $(CMSIS_ATMEL_DIR)/CMSIS-Atmel/CMSIS/Device/ATMEL
+	sys_include_dirs += $(CMSIS_DIR)/CMSIS/Core/Include
+	sys_include_dirs += $(CMSIS_DIR)/CMSIS/DSP/Include
 
 	# Could consider promoting to general CXXFLAGS area? Why keep SAMD-specific?
 	CXXFLAGS += -fno-rtti
@@ -578,6 +579,7 @@ core_dir := $(core_dir)\n
 variant_dir := $(variant_dir)\n
 core_subdirs := $(core_subdirs)\n
 include_dirs := $(include_dirs)\n
+sys_include_dirs := $(sys_include_dirs)\n
 ARDUINO_RUNTIME_VER := $(ARDUINO_RUNTIME_VER)\n
 lib_dirs := $(lib_dirs)\n
 raw_extra_flags := $(raw_extra_flags)\n
@@ -679,6 +681,7 @@ endif
 	@echo "===================================="
 	@echo "install_dir       : $(install_dir)"
 	@echo "include_dirs      : $(include_dirs)"
+	@echo "sys_include_dirs  : $(sys_include_dirs)"
 	@echo "lib_dirs          : $(lib_dirs)"
 	@echo "include_root      : $(include_root)"
 	@echo "arch_include_root : $(arch_include_root)"
