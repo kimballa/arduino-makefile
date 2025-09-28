@@ -35,3 +35,42 @@ FLASH_PRGM := $(BOSSAC)
 FLASH_ARGS = --info --debug --port=$(UPLOAD_PORT) -U --offset=0x4000 --arduino-erase --write $(flash_bin_file)
 UPLOAD_FLASH_ARGS = $(FLASH_ARGS) --reset
 VERIFY_FLASH_ARGS = $(FLASH_ARGS) --verify --reset
+
+
+### SAMD-specific gcc config
+
+CMSIS_VER = $(strip $(shell \
+	ls --reverse -1 $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/tools/CMSIS | \
+	head -1))
+
+CMSIS_ATMEL_VER = $(strip $(shell \
+	ls --reverse -1 $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/tools/CMSIS-Atmel | \
+	head -1))
+
+CMSIS_DIR = $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/tools/CMSIS/$(CMSIS_VER)
+CMSIS_ATMEL_DIR = $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/tools/CMSIS-Atmel/$(CMSIS_ATMEL_VER)
+
+# Add flags specific to Atmel/ARM standard library paths: math and signal processing lib code
+# is outside default search path; needed by Arduino core.
+sys_include_dirs += $(CMSIS_ATMEL_DIR)/CMSIS/Device/ATMEL
+sys_include_dirs += $(CMSIS_ATMEL_DIR)/CMSIS-Atmel/CMSIS/Device/ATMEL
+sys_include_dirs += $(CMSIS_DIR)/CMSIS/Core/Include
+sys_include_dirs += $(CMSIS_DIR)/CMSIS/DSP/Include
+
+# Add ARM CMSIS standard library paths for linker.
+lib_dirs += $(CMSIS_DIR)/CMSIS/Lib/GCC
+lib_dirs += $(CMSIS_DIR)/CMSIS/DSP/Lib/GCC
+
+
+### ARM-specific gcc config (common to samd, teensy)
+
+CFLAGS += -mcpu=$(build_cpu) -mthumb -nostdlib
+# We generally want the L1 cache enabled on Arm devices.
+CFLAGS += -DENABLE_CACHE
+CFLAGS += -DUSBCON -DUSB_CONFIG_POWER=100
+
+# Could consider promoting to general CXXFLAGS area? Why keep Arm-specific?
+CXXFLAGS += -fno-rtti
+
+LDARCH = -mcpu=$(build_cpu) -mthumb
+LDFLAGS += --specs=nano.specs --specs=nosys.specs
