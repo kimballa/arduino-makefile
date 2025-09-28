@@ -1,0 +1,12 @@
+# Map from board fqdn to the .mk filename containing the config info
+# needed to build for the platform.
+
+# Adafruit SAMD (Cortex M0 / M4) boards
+adafruit:samd:adafruit_feather_m4,adafruit_samd.mk
+
+# Official Arduino Microchip AVR-based boards
+arduino:avr:leonardo,arduino-avr.mk
+arduino:avr:uno,arduino-avr.mk
+
+# Teensy
+teensy:avr:teensy41,teensy41.mk

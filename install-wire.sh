@@ -14,7 +14,7 @@ bindir=`cd ${bindir} && pwd`
 cd "$bindir"
 
 echo "Determining Arduino architecture..."
-arch=`prog_name=x make -f arduino.mk config | grep -e '^Architecture' | cut -d ':' -f 2 | tr -d '[:blank:]'`
+arch=`prog_name=x make -f arduino.mk config | grep -e '^install_arch' | cut -d ':' -f 2 | tr -d '[:blank:]'`
 
 if [ -z "$arch" ]; then
   echo 'Could not determine Arduino architecture!'

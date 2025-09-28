@@ -95,7 +95,7 @@
 # Use `make config` to see the active configuration.
 # Use `make help` to see a list of available targets.
 
-ARDUINO_MK_VER := 1.5.0
+ARDUINO_MK_VER := 2.0.0
 ARDUINO_MK_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 
 # If the user has a config file to set $BOARD, etc., include it here.
@@ -155,19 +155,22 @@ AVR_PROGRAMMER ?= avr109
 
 TAGS_FILE = tags
 
+PROFILES_DIR = $(ARDUINO_MK_DIR)/profiles
+BOARD_PROFILE_INDEX_FILE = $(PROFILES_DIR)/profile_index.txt
+
 # Set variables for compilation dependencies
 
 ifneq (,$(install_dir))
 # Directories where header files for Arduino libraries are installed to.
 include_root=$(install_dir)/include
-arch_include_root=$(include_root)/arch/$(ARCH)
+arch_include_root=$(include_root)/arch/$(install_arch)
 mcu_include_root=$(arch_include_root)/$(build_mcu)
 
 sys_include_dirs += $(mcu_include_root)
 sys_include_dirs += $(arch_include_root)
 sys_include_dirs += $(include_root)
 
-lib_dirs += $(install_dir)/lib/arch/$(ARCH)/$(build_mcu)
+lib_dirs += $(install_dir)/lib/arch/$(install_arch)/$(build_mcu)
 else
 $(info Warning: $$install_dir is not defined. It is recommended you set this in ~/.arduno_mk.conf)
 $(info so that libraries and header files can be located.)
@@ -265,14 +268,13 @@ include $(CACHED_ARDUINO_CONF_FILE)
 
 else ### (if cached arduino conf file exists) ###
 
-	# Need to run arduino-cli to discover dependencies. This will take a couple of seconds.
+	# Need to run arduino-cli to determine the connected board 
+	# and then match that to a board profile.
 	# Cache the results in $(CACHED_ARDUINO_CONF_FILE).
 $(info Discovering Arduino build configuration...)
 
-	# ARDUINO_DATA_DIR: Where does arduino-cli store its toolchain packages?
-	__data_dir_1 = $(strip $(shell $(ARDUINO_CLI) config dump | grep 'data' | head -1 | cut -d ':' -f 2))
 ifndef ARDUINO_DATA_DIR
-	ARDUINO_DATA_DIR := $(strip $(__data_dir_1))
+	ARDUINO_DATA_DIR := $(HOME)/.arduino15
 endif
 
 ifndef BOARD
@@ -294,92 +296,31 @@ endif
 	# Specific Arduino variant within fqbn.
 	VARIANT := $(strip $(shell echo $(TRUE_BOARD) | head -1 | cut -d ':' -f 3))
 
-	# Based on the current $TRUE_BOARD, look up complete toolchain information from
-	# output of `arduino-cli board details`; set the command to call here:
-	__DETAILS := $(ARDUINO_CLI) board details -b $(TRUE_BOARD)
-
-	# What we are searching for is values to assign to the following variables, which may be overridden
-	# in advance:
-	# ARDUINO_PACKAGE - should be 'arduino', 'adafruit', etc; subdir of packages/
-	# ARCH - should be 'avr', 'samd', etc.
-	# ARCH_VER - version number for the arch (core file, etc.)
-	# AVR_CXX - the fully-resolved path to the cross-compiler.
-ifeq ($(origin ARDUINO_PACKAGE), undefined)
-	ARDUINO_PACKAGE := $(strip $(shell $(__DETAILS) | grep "Package name:" | head -1 | cut -d ':' -f 2))
-endif
-	ARDUINO_PACKAGE_UPPER := $(strip $(shell echo $(ARDUINO_PACKAGE) | tr [:lower:] [:upper:]))
-
-ifeq ($(origin ARCH), undefined)
-	ARCH := $(strip $(shell $(__DETAILS) | grep "Platform architecture:" | head -1 | cut -d ':' -f 2))
-endif
-ifeq ($(origin ARCH_VER), undefined)
-  ARCH_VER := $(strip $(shell $(__DETAILS) | grep "Board version:" | head -1 | cut -d ':' -f 2))
+	# Based on the current $TRUE_BOARD, determine which makefile include to use
+	# to look up complete toolchain information for the architecture.
+	BOARD_PROFILE_FILENAME = $(shell grep -v -e "^#" "$(BOARD_PROFILE_INDEX_FILE)" | grep -e "$(TRUE_BOARD)" "$(BOARD_PROFILE_INDEX_FILE)" | head -1 | awk --field-separator ',' '{print $$2}')
+ifeq ($(BOARD_PROFILE_FILENAME),)
+$(error "No Makefile profile available for fqbn: $(TRUE_BOARD)")
 endif
 
-	__COMPILER_TOOLS := $(strip $(shell $(__DETAILS) | grep "Required tool" | grep "gcc" | head -1 ))
-	COMPILER_TOOLS_DIR := $(strip $(shell echo "$(__COMPILER_TOOLS)" | cut -d ' ' -f 3 | cut -d ':' -f 2))
-	COMPILER_VERSION := $(strip $(shell echo "$(__COMPILER_TOOLS)" | cut -d ' ' -f 4))
-	COMPILER_BINDIR := $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/tools/$(COMPILER_TOOLS_DIR)/$(COMPILER_VERSION)/bin
-ifeq ($(origin AVR_CXX), undefined)
-	COMPILER_NAME := $(strip $(shell ls -1 $(COMPILER_BINDIR) | grep -e 'g++$$' | head -1))
-	# We have found the fully-qualified path to the g++ to use.
-	AVR_CXX := $(realpath $(COMPILER_BINDIR)/$(COMPILER_NAME))
-endif
-ifeq ($(origin AVR_AR), undefined)
-	AR_NAME := $(strip $(shell ls -1 $(COMPILER_BINDIR) | grep -e 'gcc-ar$$' | head -1))
-	AVR_AR := $(realpath $(COMPILER_BINDIR)/$(AR_NAME))
-endif
-ifeq ($(origin AVR_OBJCOPY), undefined)
-	OBJCOPY_NAME := $(strip $(shell ls -1 $(COMPILER_BINDIR) | grep -e 'objcopy$$' | head -1))
-	AVR_OBJCOPY := $(realpath $(COMPILER_BINDIR)/$(OBJCOPY_NAME))
-endif
-ifeq ($(origin AVR_SIZE), undefined)
-	SIZE_NAME := $(strip $(shell ls -1 $(COMPILER_BINDIR) | grep -e 'size$$' | head -1))
-	AVR_SIZE := $(realpath $(COMPILER_BINDIR)/$(SIZE_NAME))
-endif
+$(info Resolved fqbn: $(TRUE_BOARD))
+$(info Loading board profile: $(BOARD_PROFILE_FILENAME)...)
+include $(PROFILES_DIR)/$(BOARD_PROFILE_FILENAME)
 
-	CXX := $(AVR_CXX)
-	AR := $(AVR_AR)
-	OBJCOPY := $(AVR_OBJCOPY)
-	SIZE := $(AVR_SIZE)
 
-	# Identify the flash uploader tool to use based on the target architecture.
-	# `avrdude` for AVR platforms, `bossac` for ARM.
-ifeq ($(ARCH), avr)
-	__FLASH_TOOLS := $(strip $(shell $(__DETAILS) | grep "Required tool" | grep "avrdude" | tail -1 ))
-	FLASH_VENDOR := $(strip $(shell echo "$(__FLASH_TOOLS)" | cut -d ' ' -f 3 | cut -d ':' -f 1))
-	FLASH_TOOLS_DIR := $(strip $(shell echo "$(__FLASH_TOOLS)" | cut -d ' ' -f 3 | cut -d ':' -f 2))
-	FLASH_VERSION := $(strip $(shell echo "$(__FLASH_TOOLS)" | cut -d ' ' -f 4))
-	FLASH_BINDIR := $(ARDUINO_DATA_DIR)/packages/$(FLASH_VENDOR)/tools/$(FLASH_TOOLS_DIR)/$(FLASH_VERSION)/bin
-	ifeq ($(origin AVRDUDE), undefined)
-		AVRDUDE_NAME := $(strip $(shell ls -1 $(FLASH_BINDIR) | grep -e 'avrdude$$' | head -1))
-		# We have found the fully-qualified path to the avrdude to use.
-		AVRDUDE := $(realpath $(FLASH_BINDIR)/$(AVRDUDE_NAME))
-	endif
-	ifeq ($(origin AVRDUDE_CONF), undefined)
-		AVRDUDE_CONF := $(realpath $(FLASH_BINDIR)/../etc/avrdude.conf)
-	endif
-	FLASH_PRGM := $(AVRDUDE)
-	FLASH_ARGS = -C$(AVRDUDE_CONF) -v -p$(build_mcu) -c$(AVR_PROGRAMMER) -P$(UPLOAD_PORT) -D -Uflash:w:$(flash_hex_file):i
-	# -V argument suppresses verification.
-	UPLOAD_FLASH_ARGS = -V $(FLASH_ARGS)
-	VERIFY_FLASH_ARGS = $(FLASH_ARGS)
-else ifeq ($(ARCH), samd)
-	__FLASH_TOOLS := $(strip $(shell $(__DETAILS) | grep "Required tool" | grep "bossac" | tail -1 ))
-	FLASH_VENDOR := $(strip $(shell echo "$(__FLASH_TOOLS)" | tr -s ' ' | cut -d ' ' -f 3 | cut -d ':' -f 1))
-	FLASH_TOOLS_DIR := $(strip $(shell echo "$(__FLASH_TOOLS)" | tr -s ' ' | cut -d ' ' -f 3 | cut -d ':' -f 2))
-	FLASH_VERSION := $(strip $(shell echo "$(__FLASH_TOOLS)" | tr -s ' ' | cut -d ' ' -f 4))
-	FLASH_BINDIR := $(ARDUINO_DATA_DIR)/packages/$(FLASH_VENDOR)/tools/$(FLASH_TOOLS_DIR)/$(FLASH_VERSION)/
-	ifeq ($(origin BOSSAC), undefined)
-		BOSSAC_NAME := $(strip $(shell ls -1 $(FLASH_BINDIR) | grep -e 'bossac$$' | head -1))
-		# We have found the fully-qualified path to the bossac to use.
-		BOSSAC := $(realpath $(FLASH_BINDIR)/$(BOSSAC_NAME))
-	endif
-	FLASH_PRGM := $(BOSSAC)
-	FLASH_ARGS = --info --debug --port=$(UPLOAD_PORT) -U --offset=0x4000 --arduino-erase --write $(flash_bin_file)
-	UPLOAD_FLASH_ARGS = $(FLASH_ARGS) --reset
-	VERIFY_FLASH_ARGS = $(FLASH_ARGS) --verify --reset
-endif
+# The profile file includes values to assign to the following variables, which may be overridden
+# in advance:
+# ARDUINO_PACKAGE - should be 'arduino', 'adafruit', etc; subdir of packages/
+# ARCH - should be 'avr', 'samd', etc.
+# ARCH_VER - version number for the arch (core file, etc.)
+# AVR_CXX - the fully-resolved path to the cross-compiler.
+
+
+ARDUINO_PACKAGE_UPPER := $(strip $(shell echo $(ARDUINO_PACKAGE) | tr [:lower:] [:upper:]))
+
+# True arch for compiler, install dir, etc., is /typically/ what is declared for $(ARCH)
+# but this might be overridden in the profile, because Teensy.
+install_arch ?= $(ARCH)
 
 	arch_root_dir = $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/hardware/$(ARCH)/$(ARCH_VER)
 	arch_upper := $(strip $(shell echo $(ARCH) | tr [:lower:] [:upper:]))
@@ -404,7 +345,9 @@ endif
 	# This may be slightly different than $(VARIANT); indicates directory under /variants/
 	build_variant := $(strip $(shell grep -e "^$(VARIANT).build.variant" $(boards_txt) | cut -d '=' -f 2-))
 
-	core_dir := $(arch_root_dir)/cores/arduino
+	# Arduino Core is usually at cores/arduino/ but some variants (e.g. Teensy) rename this.
+	arduino_core_name ?= arduino
+	core_dir := $(arch_root_dir)/cores/$(arduino_core_name)
 	variant_dir := $(arch_root_dir)/variants/$(build_variant)
 
 	# What directory structure exists under /core/ that we should pay attention to?
@@ -414,8 +357,9 @@ endif
 
 	sys_include_dirs += $(core_dir) $(variant_dir)
 
-	CFLAGS += -DARCH_$(arch_upper) -DARDUINO_ARCH_$(arch_upper)
-	CFLAGS += -DARDUINO_$(arch_upper)_$(ARDUINO_PACKAGE_UPPER)
+	# Common system architecture identification preprocessor definitions
+	arduino_arch_preproc_def ?= -DARCH_$(arch_upper) -DARDUINO_ARCH_$(arch_upper) -DARDUINO_$(arch_upper)_$(ARDUINO_PACKAGE_UPPER)
+	CFLAGS += $(arduino_arch_preproc_def)
 
 	# Act as if we are a 1.8.0 Arduino IDE
 	# This number really just needs to be > 100.
@@ -431,54 +375,54 @@ endif
 
 	# Add architecture-specific compiler and linker flags.
 	# At minimum, we need to specify the architecture and subarchitecture/step compilation target.
-	build_mcu := $(strip $(shell grep -e "^$(VARIANT).build.mcu" $(boards_txt) | cut -d '=' -f 2-))
-ifeq ($(ARCH), avr)
-	# AVR-specific compiler options.
-	CFLAGS += -mmcu=$(build_mcu)
-	LDARCH = -mmcu=$(build_mcu)
+		build_mcu := $(strip $(shell grep -e "^$(VARIANT).build.mcu" $(boards_txt) | cut -d '=' -f 2-))
+	ifeq ($(install_arch), avr)
+		# AVR-specific compiler options.
+		CFLAGS += -mmcu=$(build_mcu)
+		LDARCH = -mmcu=$(build_mcu)
 
-	# link-time optimization creates great space savings, critical for AVR.
-	# A bug in binutils (fixed in 2.35; see https://gcc.gnu.org/bugzilla/show_bug.cgi?id=83967)
-	# makes it challenging to use in ARM projects with IRQ handlers, so AVR-only for now.
-	# Fixed in ARM 2020-q4 toolchain but not available in Arduino / Adafruit SAMD toolchains.
-	OPTFLAGS += -flto
-endif
-ifeq ($(ARCH), samd)
-	# SAMD/ARM-specific compiler options.
+		# link-time optimization creates great space savings, critical for AVR.
+		# A bug in binutils (fixed in 2.35; see https://gcc.gnu.org/bugzilla/show_bug.cgi?id=83967)
+		# makes it challenging to use in ARM projects with IRQ handlers, so AVR-only for now.
+		# Fixed in ARM 2020-q4 toolchain but not available in Arduino / Adafruit SAMD toolchains.
+		OPTFLAGS += -flto
+	endif
+	ifeq ($(install_arch), samd)
+		# SAMD/ARM-specific compiler options.
 
-	CMSIS_VER = $(strip $(shell \
-		ls --reverse -1 $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/tools/CMSIS | \
-		head -1))
+		CMSIS_VER = $(strip $(shell \
+			ls --reverse -1 $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/tools/CMSIS | \
+			head -1))
 
-	CMSIS_ATMEL_VER = $(strip $(shell \
-		ls --reverse -1 $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/tools/CMSIS-Atmel | \
-		head -1))
+		CMSIS_ATMEL_VER = $(strip $(shell \
+			ls --reverse -1 $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/tools/CMSIS-Atmel | \
+			head -1))
 
-	CMSIS_DIR = $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/tools/CMSIS/$(CMSIS_VER)
-	CMSIS_ATMEL_DIR = $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/tools/CMSIS-Atmel/$(CMSIS_ATMEL_VER)
+		CMSIS_DIR = $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/tools/CMSIS/$(CMSIS_VER)
+		CMSIS_ATMEL_DIR = $(ARDUINO_DATA_DIR)/packages/$(ARDUINO_PACKAGE)/tools/CMSIS-Atmel/$(CMSIS_ATMEL_VER)
 
-	CFLAGS += -mcpu=$(build_mcu) -mthumb -nostdlib
-	# We generally want the L1 cache enabled on SAMD devices.
-	CFLAGS += -DENABLE_CACHE
-	CFLAGS += -DUSBCON -DUSB_CONFIG_POWER=100
-	# Add flags specific to Atmel/ARM standard library paths: math and signal processing lib code
-	# is outside default search path; needed by Arduino core.
-	sys_include_dirs += $(CMSIS_ATMEL_DIR)/CMSIS/Device/ATMEL
-	sys_include_dirs += $(CMSIS_ATMEL_DIR)/CMSIS-Atmel/CMSIS/Device/ATMEL
-	sys_include_dirs += $(CMSIS_DIR)/CMSIS/Core/Include
-	sys_include_dirs += $(CMSIS_DIR)/CMSIS/DSP/Include
+		CFLAGS += -mcpu=$(build_mcu) -mthumb -nostdlib
+		# We generally want the L1 cache enabled on SAMD devices.
+		CFLAGS += -DENABLE_CACHE
+		CFLAGS += -DUSBCON -DUSB_CONFIG_POWER=100
+		# Add flags specific to Atmel/ARM standard library paths: math and signal processing lib code
+		# is outside default search path; needed by Arduino core.
+		sys_include_dirs += $(CMSIS_ATMEL_DIR)/CMSIS/Device/ATMEL
+		sys_include_dirs += $(CMSIS_ATMEL_DIR)/CMSIS-Atmel/CMSIS/Device/ATMEL
+		sys_include_dirs += $(CMSIS_DIR)/CMSIS/Core/Include
+		sys_include_dirs += $(CMSIS_DIR)/CMSIS/DSP/Include
 
-	# Could consider promoting to general CXXFLAGS area? Why keep SAMD-specific?
-	CXXFLAGS += -fno-rtti
+		# Could consider promoting to general CXXFLAGS area? Why keep SAMD-specific?
+		CXXFLAGS += -fno-rtti
 
-	LDARCH = -mcpu=$(build_mcu) -mthumb
-	LDFLAGS += --specs=nano.specs --specs=nosys.specs
-	# Add ARM CMSIS standard library paths for linker.
-	lib_dirs += $(CMSIS_DIR)/CMSIS/Lib/GCC
-	lib_dirs += $(CMSIS_DIR)/CMSIS/DSP/Lib/GCC
-endif
+		LDARCH = -mcpu=$(build_mcu) -mthumb
+		LDFLAGS += --specs=nano.specs --specs=nosys.specs
+		# Add ARM CMSIS standard library paths for linker.
+		lib_dirs += $(CMSIS_DIR)/CMSIS/Lib/GCC
+		lib_dirs += $(CMSIS_DIR)/CMSIS/DSP/Lib/GCC
+	endif
 
-	# Define flags for architecture-specific ldscript if available.
+		# Define flags for architecture-specific ldscript if available.
 	linker_script_arg := $(strip $(shell grep -e "^$(VARIANT).build.ldscript" $(boards_txt) | cut -d '=' -f 2-))
 ifneq ($(linker_script_arg),)
 	# We have a custom linker script to deploy; its path is relative to the variant dir.
@@ -486,16 +430,16 @@ ifneq ($(linker_script_arg),)
 	LDFLAGS += -T$(linker_script)
 endif
 
-	build_board_def := $(strip $(shell grep -e "^$(VARIANT).build.board" $(boards_txt) | cut -d '=' -f 2))
+	build_board_def ?= $(strip $(shell grep -e "^$(VARIANT).build.board" $(boards_txt) | cut -d '=' -f 2))
 	CFLAGS += -DARDUINO_$(build_board_def) # e.g. -DARDUINO_AVR_LEONARDO
 
-	build_f_cpu := $(strip $(shell grep -e "^$(VARIANT).build.f_cpu" $(boards_txt) | cut -d '=' -f 2))
+	build_f_cpu ?= $(strip $(shell grep -e "^$(VARIANT).build.f_cpu" $(boards_txt) | cut -d '=' -f 2))
 	CFLAGS += -DF_CPU=$(build_f_cpu)
 
-	build_vid := $(strip $(shell grep -e "^$(VARIANT).build.vid" $(boards_txt) | cut -d '=' -f 2))
+	build_vid ?= $(strip $(shell grep -e "^$(VARIANT).build.vid" $(boards_txt) | cut -d '=' -f 2))
 	CFLAGS += -DUSB_VID=$(build_vid)
 
-	build_pid := $(strip $(shell grep -e "^$(VARIANT).build.pid" $(boards_txt) | cut -d '=' -f 2))
+	build_pid ?= $(strip $(shell grep -e "^$(VARIANT).build.pid" $(boards_txt) | cut -d '=' -f 2))
 	CFLAGS += -DUSB_PID=$(build_pid)
 
 	build_usb_product := $(strip $(shell grep -e "^$(VARIANT).build.usb_product" $(boards_txt) | cut -d '=' -f 2))
@@ -515,7 +459,7 @@ endif
 	CXXFLAGS += -Wno-error=narrowing
 
 	# Additional flags specific to C++ compilation
-	CXXFLAGS += -std=gnu++17
+	CXXFLAGS += -std=gnu++20
 	CXXFLAGS += -fno-threadsafe-statics
 
 	# g++ flags to use for invoking the linker
@@ -537,12 +481,11 @@ ARDUINO_DATA_DIR := $(ARDUINO_DATA_DIR)\n
 BOARD := $(BOARD)\n
 TRUE_BOARD := $(TRUE_BOARD)\n
 VARIANT := $(VARIANT)\n
-__DETAILS := $(__DETAILS)\n
 ARDUINO_PACKAGE := $(ARDUINO_PACKAGE)\n
 ARDUINO_PACKAGE_UPPER := $(ARDUINO_PACKAGE_UPPER)\n
 ARCH := $(ARCH)\n
 ARCH_VER := $(ARCH_VER)\n
-__COMPILER_TOOLS := $(__COMPILER_TOOLS)\n
+install_arch := $(install_arch)\n
 COMPILER_TOOLS_DIR := $(COMPILER_TOOLS_DIR)\n
 COMPILER_VERSION := $(COMPILER_VERSION)\n
 COMPILER_BINDIR := $(COMPILER_BINDIR)\n
@@ -558,8 +501,6 @@ CXX := $(CXX)\n
 AR := $(AR)\n
 OBJCOPY := $(OBJCOPY)\n
 SIZE := $(SIZE)\n
-__FLASH_TOOLS := $(__FLASH_TOOLS)\n
-__FLASH_VENDOR := $(__FLASH_VENDOR)\n
 FLASH_TOOLS_DIR := $(FLASH_TOOLS_DIR)\n
 FLASH_VERSION := $(FLASH_VERSION)\n
 FLASH_BINDIR := $(FLASH_BINDIR)\n
@@ -634,7 +575,7 @@ $(info )
 ######### end configuration section #########
 
 config:
-	@echo "Ardiuno build configuration:"
+	@echo "Arduino build configuration:"
 	@echo "===================================="
 	@echo "arduino.mk    : $(ARDUINO_MK_VER)"
 	@echo "BOARD (fqdn)  : $(TRUE_BOARD)"
@@ -643,6 +584,7 @@ config:
 	@echo "Architecture  : $(ARCH)"
 	@echo "Arch version  : $(ARCH_VER)"
 	@echo "Variant       : $(VARIANT) [$(build_variant)]"
+	@echo "install_arch  : $(install_arch)"
 	@echo "Chipset       : $(build_mcu)"
 	@echo "Toolchain ver : $(COMPILER_VERSION)"
 	@echo "Toolchain     : $(COMPILER_BINDIR)"
@@ -895,8 +837,8 @@ library: $(TARGET)
 install: $(TARGET)
 	mkdir -p $(install_dir)
 	mkdir -p $(include_install_dir)
-	mkdir -p $(install_dir)/lib/arch/$(ARCH)/$(build_mcu)/
-	cp $(TARGET) $(install_dir)/lib/arch/$(ARCH)/$(build_mcu)/
+	mkdir -p $(install_dir)/lib/arch/$(install_arch)/$(build_mcu)/
+	cp $(TARGET) $(install_dir)/lib/arch/$(install_arch)/$(build_mcu)/
 	cd $(install_headers_root) && rsync -R $(install_headers) $(include_install_dir)
 
 lint:
@@ -936,6 +878,19 @@ endif
 %.o : %.S
 	$(CXX) -x assembler-with-cpp -c $(CPPFLAGS) $(CXXFLAGS) $< -o $@
 
+
+# Rules that help with debugging this makefile
+
+# To print debug info about a macro $(FOO), use `make dbgprint-FOO` 
+dbgprint-%:
+	@echo "$*" value: "$($*)"
+	@echo Defined as "$(value $*)"
+	@echo From: "$(origin $*)"
+	@false
+
+
+
+# coda
 
 .PHONY: all config help clean core install image library eeprom flash upload verify \
 		distclean serial tags TAGS
