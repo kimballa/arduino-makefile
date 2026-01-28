@@ -13,7 +13,7 @@ Setup and dependencies
 * Install the `arduino-cli` tool (https://github.com/arduino/arduino-cli) on your `PATH`.
 * Copy `arduino_mk_conf.template` to a file named `~/.arduino_mk.conf` to hold your hardware
   configuration. This is included in the Makefile and follows Makefile syntax.
-* Build the `Wire` library for your Arduino by running `./install-wire.sh`.
+* Build the `Wire` and SPI libraries for your Arduino by running `./install-wire.sh`.
 
 Config file
 -----------

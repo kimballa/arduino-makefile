@@ -5,4 +5,4 @@ install_header_dirs := src
 
 arch_specific_h := 1
 
-include ../../arduino.mk
+include ../../../arduino.mk

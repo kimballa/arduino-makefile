@@ -92,6 +92,10 @@
 # There is a template `arduino_mk_conf.template` config file for you to get started:
 #     $ cp arduino_mk_conf.template $HOME/.arduino_mk.conf
 #
+# To set up any steps to occur before compilation (e.g., codegen), you should specify
+# that the `precompile` target depends on your codegen step:
+#    precompile: my_codegen_target
+#
 # Use `make config` to see the active configuration.
 # Use `make help` to see a list of available targets.
 
@@ -744,25 +748,31 @@ all: library
 endif
 
 # Rule for compiling c++ source replicated for various equivalent c++ extensions.
-%.o : %.cpp
+%.o : %.cpp precompile
 	$(CXX) -x c++ -c $(CPPFLAGS) $(CXXFLAGS) $< -o $@
 
-%.o : %.cxx
+%.o : %.cxx precompile
 	$(CXX) -x c++ -c $(CPPFLAGS) $(CXXFLAGS) $< -o $@
 
-%.o : %.C
+%.o : %.C precompile
 	$(CXX) -x c++ -c $(CPPFLAGS) $(CXXFLAGS) $< -o $@
 
 # Arduino-specific C++ file ext.
-%.o : %.ino
+%.o : %.ino precompile
 	$(CXX) -x c++ -c $(CPPFLAGS) $(CXXFLAGS) $< -o $@
 
 # Additional gcc-supported languages.
-%.o : %.c
+%.o : %.c precompile
 	$(CXX) -x c -c $(CPPFLAGS) $(CFLAGS) $< -o $@
 
-%.o : %.S
+%.o : %.S precompile
 	$(CXX) -x assembler-with-cpp -c $(CPPFLAGS) $(CXXFLAGS) $< -o $@
+
+
+# A rule that doesn't do anything by itself, but allows wrapping Makefiles to specify
+# dependencies that must happen before any compilation step, as all compiler cmds 
+# depend on `precompile`.
+precompile:
 
 
 # Rules that help with debugging this makefile
@@ -779,5 +789,5 @@ dbgprint-%:
 # coda
 
 .PHONY: all config help clean core install image library eeprom flash upload verify \
-		distclean serial tags TAGS
+		distclean serial tags TAGS precompile
 

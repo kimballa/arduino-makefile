@@ -2,7 +2,7 @@
 #
 # (c) Copyright 2022 Aaron Kimball
 #
-# Build and install the Wire library for your specific Arduino.
+# Build and install the Wire and SPI libraries for your specific Arduino.
 #
 # You must configure BOARD=your:fqbn:here in ~/.arduino_mk.conf
 # or have an Arduino device connected to this computer which can
@@ -25,12 +25,16 @@ if [ -z "$arch" ]; then
   exit 1
 fi
 
-if [ ! -d "wire/${arch}" ]; then
-  echo "Wire library not available for architecture: ${arch}"
-  exit 1
+if [ ! -d "common-libs/wire/${arch}" ]; then
+  echo "WARNING: Wire library not available for architecture: ${arch}"
+else
+  echo "Building Wire for architecture: ${arch}"
+  make -C "common-libs/wire/${arch}" install
 fi
 
-echo "Building Wire for architecture: ${arch}"
-
-make -C "wire/${arch}" install
-
+if [ ! -d "common-libs/SPI/${arch}" ]; then
+  echo "WARNING: SPI library not available for architecture: ${arch}"
+else
+  echo "Building SPI for architecture: ${arch}"
+  make -C "common-libs/SPI/${arch}" install
+fi

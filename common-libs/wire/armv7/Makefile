@@ -7,4 +7,4 @@ install_header_dirs := . twi
 
 arch_specific_h := 1
 
-include ../../arduino.mk
+include ../../../arduino.mk

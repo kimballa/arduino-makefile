@@ -1,4 +1,15 @@
 
+* The profiles should explicitly call out the PKG_LIBRARIES_ROOT
+  (packages/foo/hardware/xx/1.2.3/libraries/) as its own variable. 
+  * Any lib deps declared in `libs := foo bar baz` should thus also add
+    `-isystem$(CORE_LIBRARIES_ROOT)/foo` and  `.../bar` and `.../baz` as header search 
+    paths.
+  * All the .c/.cpp/.S files in each of those dirs should get copied into build/libdeps/foo/
+  * ... and those copied versions should get compiled
+  * ... and added to a build/libdeps/libproj_deps.a
+  * ... which should be linked into the final build with -lproj_deps (with -Lbuild/libdeps/)
+
+
 * If there are multiple include dirs, it flattens them all into the same
   /arduino-install/include/ destination. e.g. foo.h and bar/baz.h are just both
   copied into .../include/{foo.h, baz.h} and the `bar/` subdir is just forgotten
