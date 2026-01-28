@@ -44,9 +44,9 @@ src_dirs := .
 # XFLAGS += (...)
 
 # If you have steps to perform before any compilation, declare them as dependencies
-# of the `precompile` step:
+# of the `$(build_dir)/.precompile_step` target:
 # 
-# precompile: my_codegen_step
+# $(build_dir)/.precompile_step: my_codegen_step
 #
 # my_codegen_step:
 #   do_codegen.sh

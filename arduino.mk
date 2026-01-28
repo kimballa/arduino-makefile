@@ -93,8 +93,8 @@
 #     $ cp arduino_mk_conf.template $HOME/.arduino_mk.conf
 #
 # To set up any steps to occur before compilation (e.g., codegen), you should specify
-# that the `precompile` target depends on your codegen step:
-#    precompile: my_codegen_target
+# that the `$(build_dir)/.precompile_step` target depends on your codegen step:
+#    $(build_dir)/.precompile_step: my_codegen_target
 #
 # Use `make config` to see the active configuration.
 # Use `make help` to see a list of available targets.
@@ -748,31 +748,32 @@ all: library
 endif
 
 # Rule for compiling c++ source replicated for various equivalent c++ extensions.
-%.o : %.cpp precompile
+%.o : %.cpp $(build_dir)/.precompile_step
 	$(CXX) -x c++ -c $(CPPFLAGS) $(CXXFLAGS) $< -o $@
 
-%.o : %.cxx precompile
+%.o : %.cxx $(build_dir)/.precompile_step
 	$(CXX) -x c++ -c $(CPPFLAGS) $(CXXFLAGS) $< -o $@
 
-%.o : %.C precompile
+%.o : %.C $(build_dir)/.precompile_step
 	$(CXX) -x c++ -c $(CPPFLAGS) $(CXXFLAGS) $< -o $@
 
 # Arduino-specific C++ file ext.
-%.o : %.ino precompile
+%.o : %.ino $(build_dir)/.precompile_step
 	$(CXX) -x c++ -c $(CPPFLAGS) $(CXXFLAGS) $< -o $@
 
 # Additional gcc-supported languages.
-%.o : %.c precompile
+%.o : %.c $(build_dir)/.precompile_step
 	$(CXX) -x c -c $(CPPFLAGS) $(CFLAGS) $< -o $@
 
-%.o : %.S precompile
+%.o : %.S $(build_dir)/.precompile_step
 	$(CXX) -x assembler-with-cpp -c $(CPPFLAGS) $(CXXFLAGS) $< -o $@
 
 
 # A rule that doesn't do anything by itself, but allows wrapping Makefiles to specify
 # dependencies that must happen before any compilation step, as all compiler cmds 
-# depend on `precompile`.
-precompile:
+# depend on `$(build_dir)/.precompile_step`.
+$(build_dir)/.precompile_step:
+	touch $(build_dir)/.precompile_step
 
 
 # Rules that help with debugging this makefile
@@ -789,5 +790,5 @@ dbgprint-%:
 # coda
 
 .PHONY: all config help clean core install image library eeprom flash upload verify \
-		distclean serial tags TAGS precompile
+		distclean serial tags TAGS
 
