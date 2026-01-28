@@ -43,6 +43,14 @@ src_dirs := .
 # Add any other compilation flags necessary:
 # XFLAGS += (...)
 
+# If you have steps to perform before any compilation, declare them as dependencies
+# of the `precompile` step:
+# 
+# precompile: my_codegen_step
+#
+# my_codegen_step:
+#   do_codegen.sh
+
 # Finally, include the main makefile library.
 # This creates targets like 'all', 'install', 'upload', 'clean'...
 include ../arduino-makefile/arduino.mk
