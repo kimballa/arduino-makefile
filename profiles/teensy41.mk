@@ -4,6 +4,9 @@ ARDUINO_PACKAGE := teensy
 ARCH := avr
 ARCH_VER := 1.59.0
 
+# Don't need to port-knock.
+SKIP_PORT_KNOCK := true
+
 # The 'arch' element of the fqbn and the teensy package path is 'avr' but
 # this is actually running on an ARM Cortex M7.
 install_arch = armv7

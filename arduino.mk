@@ -102,6 +102,10 @@
 ARDUINO_MK_VER := 2.0.0
 ARDUINO_MK_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 
+# Set to `false` to port-knock for reboot (do this for Leonardo & Feather).
+# Set to `true` in profile to skip port-knock step on image programming.
+SKIP_PORT_KNOCK := false
+
 # If the user has a config file to set $BOARD, etc., include it here.
 MAKE_CONF_FILE := $(HOME)/.arduino_mk.conf
 ifeq ($(shell ls -1 $(MAKE_CONF_FILE) 2>/dev/null),$(MAKE_CONF_FILE))
@@ -694,9 +698,9 @@ ifneq ($(origin prog_name), undefined)
 image: $(TARGET) $(core_lib) $(eeprom_file) $(flash_hex_file) $(filash_bin_file) $(size_summary_file)
 
 upload: image
-	# Force reset of device through port knocking on serial port.
-	# TODO(aaron): Only do this for Leonardo and Feather... need to make configurable.
-	stty 1200 -F $(UPLOAD_PORT) raw -echo
+	@# Force reset of device through port knocking on serial port.
+	@# (TODO - parameterize based on '1200_bps_touch' option in boards.txt)
+	$(SKIP_PORT_KNOCK) || stty 1200 -F $(UPLOAD_PORT) raw -echo
 	@sleep 1
 	@echo "Waiting for port to re-appear"
 	while true; do ls -l $(UPLOAD_PORT); if [ $$? -eq 0 ]; then break; fi; sleep 1; done
@@ -704,10 +708,9 @@ upload: image
 	$(FLASH_PRGM) $(UPLOAD_FLASH_ARGS)
 
 verify: image
-	# Force reset of device through port knocking on serial port.
-	# TODO(aaron): Only do this for Leonardo and Feather ... need to make configurable.
-	# (see '1200_bps_touch' option in boards.txt)
-	stty 1200 -F $(UPLOAD_PORT) raw -echo
+	@# Force reset of device through port knocking on serial port.
+	@# (see '1200_bps_touch' option in boards.txt)
+	$(SKIP_PORT_KNOCK) || stty 1200 -F $(UPLOAD_PORT) raw -echo
 	@sleep 1
 	@echo "Waiting for port to re-appear"
 	while true; do ls -l $(UPLOAD_PORT); if [ $$? -eq 0 ]; then break; fi; sleep 1; done
