@@ -431,7 +431,7 @@ CXXFLAGS += $(CFLAGS)
 CXXFLAGS += -Wno-error=narrowing
 
 # Additional flags specific to C++ compilation
-CXXFLAGS += -std=gnu++20
+CXXFLAGS += -std=gnu++2a
 CXXFLAGS += -fno-threadsafe-statics
 
 # g++ flags to use for invoking the linker
