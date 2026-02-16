@@ -776,7 +776,8 @@ endif
 # dependencies that must happen before any compilation step, as all compiler cmds 
 # depend on `$(build_dir)/.precompile_step`.
 $(build_dir)/.precompile_step:
-	touch $(build_dir)/.precompile_step
+	mkdir -p "$(build_dir)"
+	touch "$(build_dir)/.precompile_step"
 
 
 # Rules that help with debugging this makefile
